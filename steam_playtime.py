@@ -561,12 +561,12 @@ def main():
 
         if (args.paid_only or args.free_only) and missing:
             # Filtering nodig maar data ontbreekt: doe expliciete enrichment (wacht)
-            print(f"🔄 Free-to-play info verzamelen voor filtering...")
+            print("🔄 Free-to-play info verzamelen voor filtering...")
             central_free_info = enrich_with_free_info(rows, central_free_info)
             save_central_free_info(central_free_info)
         elif missing and not args.paid_only and not args.free_only:
             # Geen filtering: start achtergrond enrichment zonder te wachten
-            print(f"🔄 Free-to-play info wordt op de achtergrond ingezameld...")
+            print("🔄 Free-to-play info wordt op de achtergrond ingezameld...")
             bg_thread = threading.Thread(
                 target=enrich_in_background,
                 args=(rows, central_free_info),

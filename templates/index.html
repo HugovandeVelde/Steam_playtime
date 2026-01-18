@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Steam Playtime - Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 Steam Playtime Manager</h1>
+            <nav>
+                <a href="/" class="nav-link active">Dashboard</a>
+                <a href="#settings" class="nav-link" onclick="showSettings()">⚙️ Instellingen</a>
+            </nav>
+        </header>
+
+        <main>
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="section">
+                <h2>Je Accounts</h2>
+                <div class="accounts-grid">
+                    {% for account_id, account in accounts.items() %}
+                    <div class="account-card">
+                        <h3>Account {{ account_id }}</h3>
+                        <p class="steam-id">{{ account.steam_id }}</p>
+                        <p class="game-count">
+                            {% if account.exists %}
+                            ✅ {{ account.game_count }} games
+                            {% else %}
+                            ❌ Geen data
+                            {% endif %}
+                        </p>
+                        <div class="account-actions">
+                            <button onclick="fetchAccount('{{ account_id }}')" class="btn btn-primary">⬇️
+                                Ophalen</button>
+                            {% if account.exists %}
+                            <button onclick="viewGames('{{ account_id }}')" class="btn btn-secondary">👁️
+                                Bekijken</button>
+                            <button onclick="exportData('{{ account_id }}', 'csv')" class="btn btn-secondary">📊
+                                CSV</button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% if not api_key_set %}
+                <div class="alert alert-warning">
+                    ⚠️ API key is niet ingesteld. Ga naar Instellingen om deze in te voeren.
+                </div>
+                {% endif %}
+            </section>
+
+            <!-- Games View Section -->
+            <section id="games-section" class="section" style="display:none;">
+                <h2>Games - Account <span id="current-account"></span></h2>
+
+                <div class="filters">
+                    <input type="number" id="min-minutes" placeholder="Min minuten" min="0">
+                    <input type="number" id="max-minutes" placeholder="Max minuten" min="0">
+                    <label><input type="checkbox" id="only-zero"> Alleen 0 minuten</label>
+                    <label><input type="checkbox" id="exclude-zero"> Zonder 0 minuten</label>
+                    <label><input type="checkbox" id="paid-only"> Alleen betaald</label>
+                    <label><input type="checkbox" id="free-only"> Alleen gratis</label>
+                    <label><input type="checkbox" id="sort-asc"> Oplopend sorteren</label>
+                    <button onclick="loadGames()" class="btn btn-primary">🔍 Filteren</button>
+                    <button onclick="backToDashboard()" class="btn btn-secondary">← Terug</button>
+                </div>
+
+                <div id="games-container" class="games-table-container">
+                    <p>Laden...</p>
+                </div>
+            </section>
+
+            <!-- Settings Section -->
+            <section id="settings" class="section" style="display:none;">
+                <h2>⚙️ Instellingen</h2>
+                <form id="settings-form">
+                    <div class="form-group">
+                        <label for="api-key">Steam Web API Key:</label>
+                        <input type="password" id="api-key"
+                            placeholder="Krijg je op https://steamcommunity.com/dev/apikey">
+                        <small>Je sleutels worden alleen lokaal opgeslagen en nooit gedeeld.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="steam-id-1">Account 1 Steam ID:</label>
+                        <input type="text" id="steam-id-1" placeholder="76561198...">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="steam-id-2">Account 2 Steam ID:</label>
+                        <input type="text" id="steam-id-2" placeholder="76561198...">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="steam-id-3">Account 3 Steam ID:</label>
+                        <input type="text" id="steam-id-3" placeholder="76561198...">
+                    </div>
+
+                    <button type="button" onclick="saveSettings()" class="btn btn-primary">💾 Opslaan</button>
+                    <button type="button" onclick="backToDashboard()" class="btn btn-secondary">← Terug</button>
+                </form>
+            </section>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+
+</html>
