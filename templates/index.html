@@ -14,6 +14,7 @@
             <h1>🎮 Steam Playtime Manager</h1>
             <nav>
                 <a href="/" class="nav-link active">Dashboard</a>
+                <a href="#untested" class="nav-link" onclick="showUntestedTab()">❓ Untested</a>
                 <a href="#settings" class="nav-link" onclick="showSettings()">⚙️ Instellingen</a>
             </nav>
         </header>
@@ -61,27 +62,6 @@
                 {% endif %}
             </section>
 
-            <!-- Games View Section -->
-            <section id="games-section" class="section" style="display:none;">
-                <h2>Games - Account <span id="current-account"></span></h2>
-
-                <div class="filters">
-                    <input type="number" id="min-minutes" placeholder="Min minuten" min="0">
-                    <input type="number" id="max-minutes" placeholder="Max minuten" min="0">
-                    <label><input type="checkbox" id="only-zero"> Alleen 0 minuten</label>
-                    <label><input type="checkbox" id="exclude-zero"> Zonder 0 minuten</label>
-                    <label><input type="checkbox" id="paid-only"> Alleen betaald</label>
-                    <label><input type="checkbox" id="free-only"> Alleen gratis</label>
-                    <label><input type="checkbox" id="sort-asc"> Oplopend sorteren</label>
-                    <button onclick="loadGames()" class="btn btn-primary">🔍 Filteren</button>
-                    <button onclick="backToDashboard()" class="btn btn-secondary">← Terug</button>
-                </div>
-
-                <div id="games-container" class="games-table-container">
-                    <p>Laden...</p>
-                </div>
-            </section>
-
             <!-- Settings Section -->
             <section id="settings" class="section" style="display:none;">
                 <h2>⚙️ Instellingen</h2>
@@ -112,6 +92,25 @@
                     </div>
                     <button type="button" onclick="addNewAccount()" class="btn btn-primary">➕ Account Toevoegen</button>
                 </form>
+            </section>
+
+            <!-- Untested Games Section -->
+            <section id="untested-section" class="section" style="display:none;">
+                <h2>❓ Untested Games</h2>
+                <p style="color: #8b949e; margin-bottom: 20px;">
+                    Games waarvan we de gratis/betaald status nog niet hebben kunnen bepalen.
+                    Je kunt ze hier handmatig aanpassen met één klik per game.
+                </p>
+
+                <div style="margin-bottom: 20px; display: flex; gap: 10px;">
+                    <button onclick="loadAllUntestedGames()" class="btn btn-primary">🔄 Laad Untested Games</button>
+                    <button onclick="retryAllUntestedGames(event)" class="btn btn-secondary">🔁 Alle Opnieuw
+                        Scannen</button>
+                </div>
+
+                <div id="untested-container" class="untested-table-container">
+                    <p style="color: #8b949e;">Klik bovenstaande knop om untested games te laden</p>
+                </div>
             </section>
             </section>
         </main>

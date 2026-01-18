@@ -34,6 +34,7 @@ ENV_FILE = Path(".env")
 DATA_DIR = Path(".")
 PROFILES_CACHE = Path("profiles_cache.json")
 ACCOUNT_NOT_CONFIGURED = "Account niet geconfigureerd"
+FETCH_REQUIRED = "Haal eerst data op"
 
 
 def get_env_config() -> Dict[str, str]:
@@ -67,6 +68,20 @@ def update_profile_cache(steam_id: str, profile_info: Dict[str, Any]) -> None:
     cache = load_profiles_cache()
     cache[steam_id] = profile_info
     save_profile_cache(cache)
+
+
+def sort_free_info_cache() -> None:
+    """Sort game_free_info.json by game ID (appid) in ascending order."""
+    try:
+        cache = load_central_free_info()
+        if not cache:
+            return
+
+        # Sort by key (appid) numerically
+        sorted_cache = dict(sorted(cache.items(), key=lambda x: int(x[0])))
+        save_central_free_info(sorted_cache)
+    except Exception:
+        pass  # Silently fail if sorting fails
 
 
 def save_env_config(config: Dict[str, str]) -> None:
@@ -380,6 +395,8 @@ def fetch_account_data(account_id: int):
             def run_enrich():
                 new_info = enrich_with_free_info(rows, central_free_info)
                 save_central_free_info(new_info)
+                # Sort after enrichment
+                sort_free_info_cache()
 
             thread = threading.Thread(target=run_enrich, daemon=False)
             thread.start()
@@ -423,7 +440,7 @@ def enrich_account_free_info(account_id: int):
     json_file = DATA_DIR / f"owned_games_{steam_id}.json"
 
     if not json_file.exists():
-        return jsonify({"error": "Haal eerst data op"}), 400
+        return jsonify({"error": FETCH_REQUIRED}), 400
 
     try:
         rows = load_games_from_json(json_file)
@@ -433,6 +450,8 @@ def enrich_account_free_info(account_id: int):
         def run_enrich():
             new_info = enrich_with_free_info(rows, central_free_info)
             save_central_free_info(new_info)
+            # Sort after enrichment
+            sort_free_info_cache()
 
         thread = threading.Thread(target=run_enrich, daemon=False)
         thread.start()
@@ -506,6 +525,263 @@ def export_data(account_id: int, format: str):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sort-cache', methods=['POST'])
+def sort_cache():
+    """Sorteer game_free_info.json op game ID."""
+    try:
+        sort_free_info_cache()
+        return jsonify({
+            "status": "success",
+            "message": "✅ game_free_info.json gesorteerd op Game ID"
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/untested-games/<int:account_id>')
+def get_untested_games(account_id: int):
+    """Haal untested games op voor een specifiek account."""
+    config = get_env_config()
+
+    # Parse accounts list
+    accounts_json = config.get("STEAM_ACCOUNTS", "[]")
+    try:
+        accounts_list = json.loads(accounts_json)
+    except json.JSONDecodeError:
+        accounts_list = []
+
+    # Validate account ID
+    if account_id < 1 or account_id > len(accounts_list):
+        return jsonify({"error": ACCOUNT_NOT_CONFIGURED}), 404
+
+    steam_id = accounts_list[account_id - 1]
+    json_file = DATA_DIR / f"owned_games_{steam_id}.json"
+
+    if not json_file.exists():
+        return jsonify({"error": FETCH_REQUIRED}), 404
+
+    try:
+        rows = load_games_from_json(json_file)
+        untested_games = [r for r in rows if r.get("is_free") is None]
+
+        return jsonify({
+            "games": untested_games,
+            "count": len(untested_games),
+            "steam_id": steam_id
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/update-game-status/<int:account_id>', methods=['POST'])
+def update_game_status(account_id: int):
+    """Update the free/paid status of a game."""
+    config = get_env_config()
+
+    # Parse accounts list
+    accounts_json = config.get("STEAM_ACCOUNTS", "[]")
+    try:
+        accounts_list = json.loads(accounts_json)
+    except json.JSONDecodeError:
+        accounts_list = []
+
+    # Validate account ID
+    if account_id < 1 or account_id > len(accounts_list):
+        return jsonify({"error": ACCOUNT_NOT_CONFIGURED}), 404
+
+    steam_id = accounts_list[account_id - 1]
+    json_file = DATA_DIR / f"owned_games_{steam_id}.json"
+
+    if not json_file.exists():
+        return jsonify({"error": "Data niet gevonden"}), 404
+
+    try:
+        data = request.get_json()
+        appid = int(data.get("appid"))
+        is_free = data.get("is_free")  # true, false, or null
+
+        # Update game in owned_games file
+        game_data = json.loads(json_file.read_text(encoding="utf-8"))
+        for game in game_data.get("response", {}).get("games", []):
+            if game.get("appid") == appid:
+                game["is_free"] = is_free
+                break
+
+        save_json(game_data, json_file)
+
+        # Update central cache
+        central_free_info = load_central_free_info()
+        central_free_info[appid] = is_free
+        save_central_free_info(central_free_info)
+
+        return jsonify({
+            "status": "success",
+            "message": "✅ Game status geupdate"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/retry-untested/<int:account_id>', methods=['POST'])
+def retry_untested_games(account_id: int):
+    """Retry checking untested games for a specific account."""
+    config = get_env_config()
+
+    # Parse accounts list
+    accounts_json = config.get("STEAM_ACCOUNTS", "[]")
+    try:
+        accounts_list = json.loads(accounts_json)
+    except json.JSONDecodeError:
+        accounts_list = []
+
+    # Validate account ID
+    if account_id < 1 or account_id > len(accounts_list):
+        return jsonify({"error": ACCOUNT_NOT_CONFIGURED}), 404
+
+    steam_id = accounts_list[account_id - 1]
+    json_file = DATA_DIR / f"owned_games_{steam_id}.json"
+
+    if not json_file.exists():
+        return jsonify({"error": FETCH_REQUIRED}), 400
+
+    try:
+        rows = load_games_from_json(json_file)
+        untested_games = [r for r in rows if r.get("is_free") is None]
+
+        if not untested_games:
+            return jsonify({
+                "status":
+                "success",
+                "message":
+                "✅ Geen untested games om opnieuw te proberen"
+            })
+
+        central_free_info = load_central_free_info()
+
+        # Run enrichment in background
+        def run_enrich():
+            new_info = enrich_with_free_info(rows, central_free_info)
+            save_central_free_info(new_info)
+            sort_free_info_cache()
+
+        thread = threading.Thread(target=run_enrich, daemon=False)
+        thread.start()
+
+        return jsonify({
+            "status":
+            "started",
+            "message":
+            f"🔄 {len(untested_games)} untested games worden opnieuw gecontroleerd..."
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/untested-games-all')
+def get_all_untested_games():
+    """Haal alle untested games op van alle accounts, gesorteerd op appid."""
+    config = get_env_config()
+
+    # Parse accounts list
+    accounts_json = config.get("STEAM_ACCOUNTS", "[]")
+    try:
+        accounts_list = json.loads(accounts_json)
+    except json.JSONDecodeError:
+        accounts_list = []
+
+    all_untested = []
+
+    # Verzamel untested games van alle accounts
+    for idx, account_id in enumerate(accounts_list, 1):
+        json_file = DATA_DIR / f"owned_games_{account_id}.json"
+
+        if not json_file.exists():
+            continue
+
+        try:
+            rows = load_games_from_json(json_file)
+            untested_games = [r for r in rows if r.get("is_free") is None]
+
+            # Voeg account_id (1-based index) toe aan elk game object
+            for game in untested_games:
+                game["account_id"] = idx
+
+            all_untested.extend(untested_games)
+        except Exception:
+            continue
+
+    # Sorteer op appid (laag naar hoog)
+    all_untested.sort(key=lambda x: x.get("appid", 0))
+
+    return jsonify({"games": all_untested, "count": len(all_untested)})
+
+
+@app.route('/api/retry-all-untested', methods=['POST'])
+def retry_all_untested_games():
+    """Retry checking all untested games from all accounts."""
+    config = get_env_config()
+
+    # Parse accounts list
+    accounts_json = config.get("STEAM_ACCOUNTS", "[]")
+    try:
+        accounts_list = json.loads(accounts_json)
+    except json.JSONDecodeError:
+        accounts_list = []
+
+    total_untested = 0
+
+    def run_retry_all():
+        """Background function to retry all untested games."""
+        all_rows = []
+
+        # Verzamel alle games van alle accounts
+        for account_id in accounts_list:
+            json_file = DATA_DIR / f"owned_games_{account_id}.json"
+            if not json_file.exists():
+                continue
+
+            try:
+                rows = load_games_from_json(json_file)
+                all_rows.extend(rows)
+            except Exception:
+                continue
+
+        if not all_rows:
+            return
+
+        # Load central info
+        central_free_info = load_central_free_info()
+
+        # Run enrichment on all games
+        new_info = enrich_with_free_info(all_rows, central_free_info)
+        save_central_free_info(new_info)
+        sort_free_info_cache()
+
+    # Count current untested games
+    for account_id in accounts_list:
+        json_file = DATA_DIR / f"owned_games_{account_id}.json"
+        if not json_file.exists():
+            continue
+
+        try:
+            rows = load_games_from_json(json_file)
+            untested_count = len([r for r in rows if r.get("is_free") is None])
+            total_untested += untested_count
+        except Exception:
+            continue
+
+    # Start background retry
+    thread = threading.Thread(target=run_retry_all, daemon=False)
+    thread.start()
+
+    return jsonify({
+        "status":
+        "started",
+        "message":
+        f"🔄 {total_untested} untested games worden opnieuw gescanned. Dit kan enkele minuten duren..."
+    })
 
 
 if __name__ == '__main__':

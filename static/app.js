@@ -8,8 +8,19 @@ function showSection(sectionId) {
     event?.target?.classList.add('active');
 }
 
+function showGamesTab() {
+    showSection('games-section');
+    document.querySelector('.nav-link:nth-child(2)').classList.add('active');
+}
+
+function showUntestedTab() {
+    showSection('untested-section');
+    document.querySelector('.nav-link:nth-child(3)').classList.add('active');
+}
+
 function showSettings() {
     showSection('settings');
+    document.querySelector('.nav-link:nth-child(4)').classList.add('active');
     loadSettings();
 }
 
@@ -53,7 +64,7 @@ async function fetchProfileAsync(accountId, cardElement) {
             }
         }
     } catch (e) {
-        console.log('Profile loading skipped for account', accountId);
+        console.warn('Profile loading skipped for account', accountId, 'Error:', e);
     }
 }
 
@@ -279,18 +290,19 @@ async function loadGames(accountId) {
 
         for (const game of data.games) {
             const hours = (game.minutes / 60).toFixed(2);
+            const storeUrl = `https://store.steampowered.com/app/${game.appid}`;
 
-            let freeStatus = '<span class="text-muted">?</span>';
+            let freeStatus = '<span class="status status-untested">❓ Untested</span>';
             if (game.is_free === true) {
-                freeStatus = '<span class="status status-free">Gratis</span>';
+                freeStatus = '<span class="status status-free">✅ Gratis</span>';
             } else if (game.is_free === false) {
-                freeStatus = '<span class="status status-paid">Betaald</span>';
+                freeStatus = '<span class="status status-paid">💰 Betaald</span>';
             }
 
             html += `
                 <tr>
-                    <td>${game.appid}</td>
-                    <td>${game.name}</td>
+                    <td><a href="${storeUrl}" target="_blank" style="color: #1f6feb; text-decoration: none; cursor: pointer;">${game.appid}</a></td>
+                    <td><a href="${storeUrl}" target="_blank" style="color: #1f6feb; text-decoration: none; cursor: pointer;">${game.name}</a></td>
                     <td style="text-align: right;">${game.minutes}</td>
                     <td style="text-align: right;">${hours}h</td>
                     <td>${freeStatus}</td>
@@ -329,5 +341,134 @@ async function enrichFreeInfo(accountId) {
     } finally {
         btn.disabled = false;
         btn.textContent = '🔄 Gratis Checken';
+    }
+}
+
+// Untested games functions
+async function loadAllUntestedGames() {
+    const container = document.getElementById('untested-container');
+    container.innerHTML = '<p>⏳ Untested games laden...</p>';
+
+    try {
+        const res = await fetch('/api/untested-games-all');
+        const data = await res.json();
+
+        if (!res.ok) {
+            container.innerHTML = `<p>❌ ${data.error}</p>`;
+            return;
+        }
+
+        if (data.count === 0) {
+            container.innerHTML = '<p style="color: #3fb950;">✅ Geen untested games! Alle games zijn geclassificeerd.</p>';
+            return;
+        }
+
+        // Build table
+        let html = `
+            <p style="padding: 10px 16px; color: #8b949e;">
+                Totaal: ${data.count} untested games (gesorteerd op App ID)
+            </p>
+            <table class="untested-table">
+                <thead>
+                    <tr>
+                        <th style="text-align: right;">AppID</th>
+                        <th>Naam</th>
+                        <th style="text-align: right;">Minuten</th>
+                        <th style="text-align: center;">Classificeer</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        for (const game of data.games) {
+            const hours = (game.minutes / 60).toFixed(2);
+            const storeUrl = `https://store.steampowered.com/app/${game.appid}`;
+
+            html += `
+                <tr>
+                    <td style="text-align: right;"><a href="${storeUrl}" target="_blank" style="color: #1f6feb;">${game.appid}</a></td>
+                    <td><a href="${storeUrl}" target="_blank" style="color: #1f6feb;">${game.name}</a></td>
+                    <td style="text-align: right;">${game.minutes}m (${hours}h)</td>
+                    <td style="text-align: center;">
+                        <button class="btn btn-status-free" onclick="setGameFree(event, ${game.account_id}, ${game.appid})">✅ Gratis</button>
+                        <button class="btn btn-status-paid" onclick="setGamePaid(event, ${game.account_id}, ${game.appid})">💰 Betaald</button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        html += `</tbody></table>`;
+        container.innerHTML = html;
+    } catch (e) {
+        container.innerHTML = `<p>❌ Fout: ${e}</p>`;
+    }
+}
+
+async function setGameFree(e, accountId, appid) {
+    e.preventDefault();
+    await updateGameStatus(e, accountId, appid, true, '✅ Gratis');
+}
+
+async function setGamePaid(e, accountId, appid) {
+    e.preventDefault();
+    await updateGameStatus(e, accountId, appid, false, '💰 Betaald');
+}
+
+async function updateGameStatus(e, accountId, appid, isFree, label) {
+    try {
+        const res = await fetch(`/api/update-game-status/${accountId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ appid: appid, is_free: isFree })
+        });
+
+        if (res.ok) {
+            showNotification(`${label} - Game geclassificeerd`);
+            // Remove row from table
+            const row = e.target.closest('tr');
+            if (row) {
+                row.style.opacity = '0.5';
+                setTimeout(() => {
+                    row.remove();
+                    // Check if table is empty
+                    const tbody = document.querySelector('.untested-table tbody');
+                    if (!tbody || tbody.children.length === 0) {
+                        const container = document.getElementById('untested-container');
+                        container.innerHTML = '<p style="color: #3fb950;">✅ Geen untested games meer! Alle games zijn geclassificeerd.</p>';
+                    }
+                }, 300);
+            }
+        } else {
+            const data = await res.json();
+            showNotification(data.error || 'Fout bij update', 'error');
+        }
+    } catch (err) {
+        showNotification('Fout: ' + err, 'error');
+    }
+}
+
+async function retryAllUntestedGames(e) {
+    const btn = e.target;
+    btn.disabled = true;
+    btn.textContent = '⏳ Scanning...';
+
+    try {
+        const res = await fetch('/api/retry-all-untested', { method: 'POST' });
+        const data = await res.json();
+
+        if (res.ok) {
+            showNotification(data.message);
+            // Reload untested games after a delay to show progress
+            setTimeout(() => {
+                loadAllUntestedGames();
+            }, 3000);
+        } else {
+            showNotification(data.error || 'Fout bij retry', 'error');
+        }
+    } catch (e) {
+        showNotification('Fout: ' + e, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔁 Alle Opnieuw Scannen';
     }
 }

@@ -55,7 +55,7 @@ def build_api_url(api_key: str, steam_id: str) -> str:
 
 
 def load_central_free_info(path: Path = Path("game_free_info.json")) -> Dict[
-        int, bool]:
+        int, Optional[bool]]:
     """Load centrally stored free-to-play info (appid -> is_free mapping)."""
     if not path.exists():
         return {}
@@ -68,8 +68,9 @@ def load_central_free_info(path: Path = Path("game_free_info.json")) -> Dict[
 
 
 def save_central_free_info(
-    free_info: Dict[int,
-                    bool], path: Path = Path("game_free_info.json")) -> None:
+    free_info: Dict[int, Optional[bool]],
+    path: Path = Path("game_free_info.json")
+) -> None:
     """Save free-to-play info centrally for all accounts."""
     try:
         # Convert int keys to strings for JSON
@@ -151,7 +152,8 @@ def fetch_game_details(appid: int) -> Optional[bool]:
 
 def enrich_with_free_info(
         rows: List[Dict[str, Any]],
-        central_free_info: Dict[int, bool]) -> Dict[int, bool]:
+        central_free_info: Dict[int,
+                                Optional[bool]]) -> Dict[int, Optional[bool]]:
     """Add free-to-play info to rows by querying Steam API if needed.
     
     Returns updated central_free_info dictionary with newly discovered info.
@@ -172,37 +174,37 @@ def enrich_with_free_info(
 
     print(
         f"🔍 {len(missing)} nieuwe games controleren op free-to-play status...")
-    failed = []
+    untested = []
     new_info = dict(central_free_info)
 
     for i, r in enumerate(missing, 1):
         is_free = fetch_game_details(r["appid"])
         if is_free is None:
-            # Steam API geeft geen data (beta/test versies), behandel als gratis
-            is_free = True
-            failed.append(r["name"])
+            # Steam API geeft geen data (beta/test versies), markeer als untested
+            untested.append(r["name"])
         r["is_free"] = is_free
         new_info[r["appid"]] = is_free
         if i % 10 == 0:
             print(f"  ... {i}/{len(missing)}")
 
-    if failed:
+    if untested:
         print(
-            f"⚠️  {len(failed)} games konden niet worden geverifieerd (behandeld als gratis):"
+            f"❓ {len(untested)} games konden niet worden geverifieerd (Untested):"
         )
-        for name in failed[:5]:  # Toon max 5
+        for name in untested[:5]:  # Toon max 5
             print(f"   - {name}")
-        if len(failed) > 5:
-            print(f"   ... en {len(failed)-5} meer")
+        if len(untested) > 5:
+            print(f"   ... en {len(untested)-5} meer")
     print("✅ Free-to-play info toegevoegd en opgeslagen in centrale cache")
     return new_info
 
 
 def enrich_in_background(rows: List[Dict[str, Any]],
-                         central_free_info: Dict[int, bool]) -> None:
+                         central_free_info: Dict[int, Optional[bool]]) -> None:
     """Background thread function to enrich free-to-play info without blocking.
     
     This silently updates the central free-info cache in the background.
+    IMPORTANT: Only saves values that were successfully verified (not None).
     """
     missing = [
         r for r in rows
@@ -216,9 +218,10 @@ def enrich_in_background(rows: List[Dict[str, Any]],
     new_info = dict(central_free_info)
     for r in missing:
         is_free = fetch_game_details(r["appid"])
-        if is_free is None:
-            is_free = True
-        new_info[r["appid"]] = is_free
+        # IMPORTANT: Only update if we got a definitive answer (not None)
+        # If Steam API returns None, leave it as untested (None) in cache
+        if is_free is not None:
+            new_info[r["appid"]] = is_free
 
     # Save updated info
     save_central_free_info(new_info)
