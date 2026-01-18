@@ -85,11 +85,26 @@ nav {
     border-radius: 8px;
     padding: 20px;
     transition: all 0.3s;
+    text-align: center;
 }
 
 .account-card:hover {
     border-color: var(--primary);
     box-shadow: 0 0 10px rgba(31, 111, 235, 0.1);
+}
+
+.account-avatar {
+    margin-bottom: 15px;
+    display: flex;
+    justify-content: center;
+}
+
+.avatar-img {
+    width: 128px;
+    height: 128px;
+    border-radius: 8px;
+    border: 2px solid var(--primary);
+    object-fit: cover;
 }
 
 .account-card h3 {

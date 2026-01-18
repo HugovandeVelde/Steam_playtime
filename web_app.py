@@ -9,6 +9,8 @@ import json
 import os
 from pathlib import Path
 from typing import Dict, Any, List
+from urllib.request import urlopen, Request
+from urllib.error import HTTPError, URLError
 
 from flask import Flask, render_template, request, jsonify, send_file
 import threading
@@ -54,11 +56,42 @@ def save_env_config(config: Dict[str, str]) -> None:
         raise IOError(f"Kon .env niet opslaan: {e}") from e
 
 
+def fetch_steam_profile(api_key: str, steam_id: str) -> Dict[str, Any]:
+    """Fetch Steam profile info (name and avatar)."""
+    try:
+        profile_url = f"https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key={api_key}&steamids={steam_id}"
+        req = Request(profile_url,
+                      headers={"User-Agent": "steam-playtime-script/1.0"})
+        with urlopen(req, timeout=10) as resp:
+            if resp.status != 200:
+                return {"error": f"HTTP {resp.status}"}
+            data = resp.read().decode("utf-8", errors="replace")
+            result = json.loads(data)
+
+            players = result.get("response", {}).get("players", [])
+            if players:
+                player = players[0]
+                return {
+                    "persona_name":
+                    player.get("personaname", "Unknown"),
+                    "avatar_url":
+                    player.get("avatarfull", ""),
+                    "profile_url":
+                    player.get("profileurl", ""),
+                    "community_visible":
+                    player.get("communityvisibilitystate", 0) > 0
+                }
+            return {"error": "Player not found"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @app.route('/')
 def index():
     """Dashboard - toon accounts en overzicht."""
     config = get_env_config()
     accounts = {}
+    api_key = config.get("STEAM_API_KEY")
 
     # Parse dynamische accounts uit JSON
     accounts_json = config.get("STEAM_ACCOUNTS", "[]")
@@ -73,8 +106,22 @@ def index():
         accounts[idx] = {
             "steam_id": steam_id,
             "exists": json_file.exists(),
-            "game_count": 0
+            "game_count": 0,
+            "persona_name": "Unknown",
+            "avatar_url": ""
         }
+
+        # Haal Steam profiel info op
+        if api_key:
+            profile_info = fetch_steam_profile(api_key, steam_id)
+            if "error" not in profile_info:
+                accounts[idx]["persona_name"] = profile_info.get(
+                    "persona_name", "Unknown")
+                accounts[idx]["avatar_url"] = profile_info.get(
+                    "avatar_url", "")
+                accounts[idx]["profile_url"] = profile_info.get(
+                    "profile_url", "")
+
         if json_file.exists():
             try:
                 data = json.loads(json_file.read_text(encoding="utf-8"))
@@ -85,7 +132,7 @@ def index():
 
     return render_template('index.html',
                            accounts=accounts,
-                           api_key_set=bool(config.get("STEAM_API_KEY")))
+                           api_key_set=bool(api_key))
 
 
 @app.route('/api/settings', methods=['GET', 'POST'])
@@ -167,6 +214,32 @@ def add_account():
 
     except Exception as e:
         return jsonify({"error": f"Fout bij toevoegen: {str(e)}"}), 500
+
+
+@app.route('/api/profile/<int:account_id>')
+def get_account_profile(account_id: int):
+    """Haal Steam profiel info op voor een account."""
+    config = get_env_config()
+
+    # Parse accounts list
+    accounts_json = config.get("STEAM_ACCOUNTS", "[]")
+    try:
+        accounts_list = json.loads(accounts_json)
+    except json.JSONDecodeError:
+        accounts_list = []
+
+    # Validate account ID
+    if account_id < 1 or account_id > len(accounts_list):
+        return jsonify({"error": ACCOUNT_NOT_CONFIGURED}), 404
+
+    steam_id = accounts_list[account_id - 1]
+    api_key = config.get("STEAM_API_KEY")
+
+    if not api_key:
+        return jsonify({"error": "API key niet ingesteld"}), 400
+
+    profile_info = fetch_steam_profile(api_key, steam_id)
+    return jsonify(profile_info)
 
 
 @app.route('/api/games/<int:account_id>')
@@ -254,20 +327,45 @@ def fetch_account_data(account_id: int):
 
         # Apply existing free-info
         central_free_info = load_central_free_info()
+        unknown_count = 0
         for game in data.get("response", {}).get("games", []):
             appid = game.get("appid")
             if appid in central_free_info:
                 game["is_free"] = central_free_info[appid]
+            else:
+                unknown_count += 1
 
         # Save
         json_path = DATA_DIR / f"owned_games_{steam_id}.json"
         save_json(data, json_path)
 
         game_count = len(data.get("response", {}).get("games", []))
+
+        # Auto-start enrichment in background if there are unknown games
+        if unknown_count > 0:
+            rows = load_games_from_json(json_path)
+
+            def run_enrich():
+                new_info = enrich_with_free_info(rows, central_free_info)
+                save_central_free_info(new_info)
+
+            thread = threading.Thread(target=run_enrich, daemon=False)
+            thread.start()
+
+            return jsonify({
+                "status": "success",
+                "message":
+                f"✅ {game_count} games opgehaald. 🔄 {unknown_count} onbekende games worden op de achtergrond ingezameld...",
+                "game_count": game_count,
+                "unknown_count": unknown_count
+            })
+
         return jsonify({
             "status": "success",
-            "message": f"✅ {game_count} games opgehaald",
-            "game_count": game_count
+            "message":
+            f"✅ {game_count} games opgehaald. Alle games zijn bekend!",
+            "game_count": game_count,
+            "unknown_count": 0
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

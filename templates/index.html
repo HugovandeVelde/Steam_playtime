@@ -25,8 +25,13 @@
                 <div class="accounts-grid">
                     {% for account_id, account in accounts.items() %}
                     <div class="account-card">
-                        <h3>Account {{ account_id }}</h3>
-                        <p class="steam-id">{{ account.steam_id }}</p>
+                        {% if account.avatar_url %}
+                        <div class="account-avatar">
+                            <img src="{{ account.avatar_url }}" alt="{{ account.persona_name }}" class="avatar-img">
+                        </div>
+                        {% endif %}
+                        <h3>{{ account.persona_name }}</h3>
+                        <p class="steam-id">ID: {{ account.steam_id }}</p>
                         <p class="game-count">
                             {% if account.exists %}
                             ✅ {{ account.game_count }} games
@@ -40,6 +45,8 @@
                             {% if account.exists %}
                             <button onclick="viewGames('{{ account_id }}')" class="btn btn-secondary">👁️
                                 Bekijken</button>
+                            <button onclick="enrichFreeInfo('{{ account_id }}')" class="btn btn-secondary">🔄
+                                Gratis Checken</button>
                             <button onclick="exportData('{{ account_id }}', 'csv')" class="btn btn-secondary">📊
                                 CSV</button>
                             {% endif %}

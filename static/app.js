@@ -270,3 +270,26 @@ async function loadGames(accountId) {
 function exportData(accountId, format) {
     globalThis.location.href = `/api/export/${accountId}/${format}`;
 }
+
+async function enrichFreeInfo(accountId) {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '🔄 Bezig...';
+
+    try {
+        const res = await fetch(`/api/enrich/${accountId}`, { method: 'POST' });
+        const data = await res.json();
+
+        if (res.ok) {
+            showNotification(data.message);
+            // Het proces loopt op de achtergrond, dus we kunnen direct feedback geven
+        } else {
+            showNotification(data.error || 'Fout bij starten', 'error');
+        }
+    } catch (e) {
+        showNotification('Fout: ' + e, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔄 Gratis Checken';
+    }
+}
