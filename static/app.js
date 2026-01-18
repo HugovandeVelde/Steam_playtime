@@ -17,6 +17,44 @@ function backToDashboard() {
     showSection('dashboard');
     document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
     document.querySelector('.nav-link').classList.add('active');
+    // Laad profiel info asynchroon
+    loadProfilesAsync();
+}
+
+// Laad profiel info asynchroon na pagina load
+async function loadProfilesAsync() {
+    const cards = document.querySelectorAll('.account-card');
+    cards.forEach((card, idx) => {
+        const accountId = idx + 1;
+        fetchProfileAsync(accountId, card);
+    });
+}
+
+async function fetchProfileAsync(accountId, cardElement) {
+    try {
+        const res = await fetch(`/api/profile/${accountId}`);
+        const data = await res.json();
+
+        if (!data.error) {
+            // Update card met profiel info
+            const nameEl = cardElement.querySelector('h3');
+            const avatarContainer = cardElement.querySelector('.account-avatar');
+
+            if (nameEl) {
+                nameEl.textContent = data.persona_name || 'Unknown';
+            }
+
+            if (avatarContainer && data.avatar_url) {
+                const img = avatarContainer.querySelector('img');
+                if (img) {
+                    img.src = data.avatar_url;
+                    img.style.display = 'block';
+                }
+            }
+        }
+    } catch (e) {
+        console.log('Profile loading skipped for account', accountId);
+    }
 }
 
 function showNotification(message, type = 'success') {

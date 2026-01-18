@@ -32,12 +32,41 @@ app.config['JSON_SORT_KEYS'] = False
 
 ENV_FILE = Path(".env")
 DATA_DIR = Path(".")
+PROFILES_CACHE = Path("profiles_cache.json")
 ACCOUNT_NOT_CONFIGURED = "Account niet geconfigureerd"
 
 
 def get_env_config() -> Dict[str, str]:
     """Get current environment configuration."""
     return load_env(ENV_FILE)
+
+
+def load_profiles_cache() -> Dict[str, Dict[str, Any]]:
+    """Load cached profile information."""
+    if PROFILES_CACHE.exists():
+        try:
+            return json.loads(PROFILES_CACHE.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, IOError):
+            return {}
+    return {}
+
+
+def save_profile_cache(profiles: Dict[str, Dict[str, Any]]) -> None:
+    """Save profile information to cache."""
+    try:
+        PROFILES_CACHE.write_text(json.dumps(profiles,
+                                             ensure_ascii=False,
+                                             indent=2),
+                                  encoding="utf-8")
+    except IOError:
+        pass  # Silently fail if cache can't be written
+
+
+def update_profile_cache(steam_id: str, profile_info: Dict[str, Any]) -> None:
+    """Update cache for a single Steam ID."""
+    cache = load_profiles_cache()
+    cache[steam_id] = profile_info
+    save_profile_cache(cache)
 
 
 def save_env_config(config: Dict[str, str]) -> None:
@@ -91,7 +120,7 @@ def index():
     """Dashboard - toon accounts en overzicht."""
     config = get_env_config()
     accounts = {}
-    api_key = config.get("STEAM_API_KEY")
+    profiles_cache = load_profiles_cache()
 
     # Parse dynamische accounts uit JSON
     accounts_json = config.get("STEAM_ACCOUNTS", "[]")
@@ -100,27 +129,20 @@ def index():
     except json.JSONDecodeError:
         accounts_list = []
 
-    # Verzamel accounts met hun data
+    # Verzamel accounts met hun data (uit cache)
     for idx, steam_id in enumerate(accounts_list, 1):
         json_file = DATA_DIR / f"owned_games_{steam_id}.json"
+
+        # Try to load from cache first
+        cached_profile = profiles_cache.get(steam_id, {})
+
         accounts[idx] = {
             "steam_id": steam_id,
             "exists": json_file.exists(),
             "game_count": 0,
-            "persona_name": "Unknown",
-            "avatar_url": ""
+            "persona_name": cached_profile.get("persona_name", "Unknown"),
+            "avatar_url": cached_profile.get("avatar_url", "")
         }
-
-        # Haal Steam profiel info op
-        if api_key:
-            profile_info = fetch_steam_profile(api_key, steam_id)
-            if "error" not in profile_info:
-                accounts[idx]["persona_name"] = profile_info.get(
-                    "persona_name", "Unknown")
-                accounts[idx]["avatar_url"] = profile_info.get(
-                    "avatar_url", "")
-                accounts[idx]["profile_url"] = profile_info.get(
-                    "profile_url", "")
 
         if json_file.exists():
             try:
@@ -132,7 +154,7 @@ def index():
 
     return render_template('index.html',
                            accounts=accounts,
-                           api_key_set=bool(api_key))
+                           api_key_set=bool(config.get("STEAM_API_KEY")))
 
 
 @app.route('/api/settings', methods=['GET', 'POST'])
@@ -239,6 +261,11 @@ def get_account_profile(account_id: int):
         return jsonify({"error": "API key niet ingesteld"}), 400
 
     profile_info = fetch_steam_profile(api_key, steam_id)
+
+    # Save to cache if successful
+    if "error" not in profile_info:
+        update_profile_cache(steam_id, profile_info)
+
     return jsonify(profile_info)
 
 
@@ -321,6 +348,11 @@ def fetch_account_data(account_id: int):
         return jsonify({"error": "API key niet ingesteld"}), 400
 
     try:
+        # Fetch profile info and cache it
+        profile_info = fetch_steam_profile(api_key, steam_id)
+        if "error" not in profile_info:
+            update_profile_cache(steam_id, profile_info)
+
         # Fetch data
         api_url = build_api_url(api_key, steam_id)
         data = fetch_owned_games_json(api_url)
