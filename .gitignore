@@ -1,5 +1,6 @@
 .env
 *.json
+!game_free_info.json
 __pycache__/
 instance/  
 *.pyc
