@@ -45,20 +45,56 @@ async function loadSettings() {
         const data = await res.json();
 
         document.getElementById('api-key').value = data.api_key;
-        document.getElementById('steam-id-1').value = data.steam_id_1;
-        document.getElementById('steam-id-2').value = data.steam_id_2;
-        document.getElementById('steam-id-3').value = data.steam_id_3;
+
+        // Dynamisch accounts render
+        const accountsList = document.getElementById('accounts-list');
+        accountsList.innerHTML = '';
+
+        if (data.accounts && data.accounts.length > 0) {
+            data.accounts.forEach((steamId, index) => {
+                const accountNum = index + 1;
+                const html = `
+                    <div class="form-group">
+                        <label for="steam-id-${accountNum}">Account ${accountNum} Steam ID:</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="steam-id-${accountNum}" value="${steamId}" placeholder="76561198..." style="flex: 1;">
+                            <button type="button" class="btn btn-secondary" onclick="removeAccount(${accountNum})" style="padding: 8px 12px;">🗑️ Verwijderen</button>
+                        </div>
+                    </div>
+                `;
+                accountsList.innerHTML += html;
+            });
+        } else {
+            accountsList.innerHTML = '<p style="color: #8b949e;">Geen accounts ingesteld. Voeg er een toe!</p>';
+        }
     } catch (e) {
         showNotification('Kon instellingen niet laden: ' + e, 'error');
     }
 }
 
 async function saveSettings() {
+    // Verzamel API key
+    const apiKey = document.getElementById('api-key').value;
+
+    // Verzamel alle accounts
+    const accounts = [];
+    document.querySelectorAll('input[id^="steam-id-"]').forEach(input => {
+        const value = input.value.trim();
+        if (value && /^\d{17}$/.test(value)) {
+            if (!accounts.includes(value)) {
+                accounts.push(value);
+            }
+        }
+    });
+
+    if (accounts.length === 0) {
+        showNotification('Voeg minstens 1 account in', 'error');
+        return;
+    }
+
     const data = {
-        api_key: document.getElementById('api-key').value,
-        steam_id_1: document.getElementById('steam-id-1').value,
-        steam_id_2: document.getElementById('steam-id-2').value,
-        steam_id_3: document.getElementById('steam-id-3').value,
+        api_key: apiKey,
+        accounts: accounts
     };
 
     try {
@@ -77,6 +113,49 @@ async function saveSettings() {
         }
     } catch (e) {
         showNotification('Fout bij opslaan: ' + e, 'error');
+    }
+}
+
+function removeAccount(accountNum) {
+    // Vind en verwijder het account veld
+    const input = document.getElementById(`steam-id-${accountNum}`);
+    if (input) {
+        input.parentElement.parentElement.remove();
+        showNotification('Account verwijderd. Klik Opslaan om te bevestigen.');
+    }
+}
+
+async function addNewAccount() {
+    const steamId = document.getElementById('new-steam-id').value.trim();
+
+    if (!steamId) {
+        showNotification('Voer een Steam ID in', 'error');
+        return;
+    }
+
+    if (!/^\d{17}$/.test(steamId)) {
+        showNotification('Steam ID moet uit 17 cijfers bestaan', 'error');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/add-account', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ steam_id: steamId })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+            showNotification('✅ Account toegevoegd!');
+            document.getElementById('new-steam-id').value = '';
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showNotification(data.message || data.error, 'error');
+        }
+    } catch (e) {
+        showNotification('Fout bij toevoegen: ' + e, 'error');
     }
 }
 
