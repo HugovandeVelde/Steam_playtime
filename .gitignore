@@ -1,3 +1,16 @@
 .env
 *.json
-
+__pycache__/
+instance/  
+*.pyc
+venv/
+.env
+.env.*
+.DS_Store
+*.sqlite3
+*.db
+*.log
+.idea/
+.vscode/
+staticfiles/
+media/
