@@ -34,11 +34,35 @@ function backToDashboard() {
 
 // Laad profiel info asynchroon na pagina load
 async function loadProfilesAsync() {
-    const cards = document.querySelectorAll('.account-card');
-    cards.forEach((card, idx) => {
-        const accountId = idx + 1;
-        fetchProfileAsync(accountId, card);
-    });
+    try {
+        const res = await fetch('/api/profiles-all');
+        const data = await res.json();
+
+        // Update each account card met profiel info
+        document.querySelectorAll('.account-card').forEach((card, idx) => {
+            const accountId = idx + 1;
+            const profileData = data[accountId];
+
+            if (profileData && !profileData.error) {
+                const nameEl = card.querySelector('h3');
+                const avatarContainer = card.querySelector('.account-avatar');
+
+                if (nameEl) {
+                    nameEl.textContent = profileData.persona_name || 'Unknown';
+                }
+
+                if (avatarContainer && profileData.avatar_url) {
+                    const img = avatarContainer.querySelector('img');
+                    if (img) {
+                        img.src = profileData.avatar_url;
+                        img.style.display = 'block';
+                    }
+                }
+            }
+        });
+    } catch (e) {
+        console.warn('Error loading all profiles:', e);
+    }
 }
 
 async function fetchProfileAsync(accountId, cardElement) {

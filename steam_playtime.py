@@ -218,10 +218,13 @@ def enrich_in_background(rows: List[Dict[str, Any]],
     new_info = dict(central_free_info)
     for r in missing:
         is_free = fetch_game_details(r["appid"])
-        # IMPORTANT: Only update if we got a definitive answer (not None)
-        # If Steam API returns None, leave it as untested (None) in cache
+        # IMPORTANT: Mark ALL games (tested and untested) in central cache
+        # So we can track which games were checked
         if is_free is not None:
             new_info[r["appid"]] = is_free
+        else:
+            # Mark as untested (None) so we know it was checked but couldn't be verified
+            new_info[r["appid"]] = None
 
     # Save updated info
     save_central_free_info(new_info)

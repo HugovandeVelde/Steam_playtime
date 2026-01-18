@@ -62,6 +62,27 @@
                 {% endif %}
             </section>
 
+            <!-- Games View Section -->
+            <section id="games-section" class="section" style="display:none;">
+                <h2>Games - Account <span id="current-account"></span></h2>
+
+                <div class="filters">
+                    <input type="number" id="min-minutes" placeholder="Min minuten" min="0">
+                    <input type="number" id="max-minutes" placeholder="Max minuten" min="0">
+                    <label><input type="checkbox" id="only-zero"> Alleen 0 minuten</label>
+                    <label><input type="checkbox" id="exclude-zero"> Zonder 0 minuten</label>
+                    <label><input type="checkbox" id="paid-only"> Alleen betaald</label>
+                    <label><input type="checkbox" id="free-only"> Alleen gratis</label>
+                    <label><input type="checkbox" id="sort-asc"> Oplopend sorteren</label>
+                    <button onclick="loadGames()" class="btn btn-primary">🔍 Filteren</button>
+                    <button onclick="backToDashboard()" class="btn btn-secondary">← Terug</button>
+                </div>
+
+                <div id="games-container" class="games-table-container">
+                    <p>Laden...</p>
+                </div>
+            </section>
+
             <!-- Settings Section -->
             <section id="settings" class="section" style="display:none;">
                 <h2>⚙️ Instellingen</h2>
@@ -117,6 +138,12 @@
     </div>
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script>
+        // Load profile info for all accounts when page loads
+        document.addEventListener('DOMContentLoaded', function () {
+            loadProfilesAsync();
+        });
+    </script>
 </body>
 
 </html>
