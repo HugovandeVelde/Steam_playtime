@@ -1,11 +1,11 @@
 # Steam Playtime
 
-�🇧 **[English version (EN)](README.md)** | 🇳🇱 **[Nederlandse versie (NL)](README_NL.md)**
+🇬🇧 **[English version (EN)](README.md)** | 🇳🇱 **[Nederlandse versie (NL)](README_NL.md)**
 
 ---
 
-A tool to fetch your **Steam owned games**, store them locally, and sort by **total playtime**.  
-Choose between **CLI** (command-line) and **Web Interface** for managing multiple Steam accounts.
+Een tool om je **Steam owned games** op te halen, lokaal op te slaan en te sorteren op **totale speeltijd**.  
+Keuze tussen **CLI** (commandline) en **Web Interface** voor het beheren van meerdere Steam accounts.
 
 ## ✨ Features
 

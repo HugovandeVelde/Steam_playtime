@@ -1,6 +1,6 @@
 # Steam Playtime
 
-🇳🇱 **[Nederlandse versie (NL)](README.md)** | 🇬🇧 **[English version (EN)](README_EN.md)**
+�🇧 **[English version (EN)](README.md)** | 🇳🇱 **[Nederlandse versie (NL)](README_NL.md)**
 
 ---
 
