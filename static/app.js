@@ -562,5 +562,3 @@ async function retryAllUntestedGames(e) {
         btn.textContent = '🔁 Alle Opnieuw Scannen';
     }
 }
-
-// # .
