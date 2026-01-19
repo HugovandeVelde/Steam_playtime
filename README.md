@@ -1,5 +1,9 @@
 # Steam Playtime
 
+🇳🇱 **[Nederlandse versie (NL)](README.md)** | 🇬🇧 **[English version (EN)](README_EN.md)**
+
+---
+
 Een tool om je **Steam owned games** op te halen, lokaal op te slaan en te sorteren op **totale speeltijd**.  
 Keuze tussen **CLI** (commandline) en **Web Interface** voor het beheren van meerdere Steam accounts.
 
