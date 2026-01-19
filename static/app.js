@@ -1,4 +1,7 @@
 // Helper functions
+const PAGE_SIZE = 200;
+let currentOffset = 0;
+let currentAccountId = null;
 function showSection(sectionId) {
     document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
     document.getElementById(sectionId).style.display = 'block';
@@ -117,6 +120,8 @@ async function loadSettings() {
         const res = await fetch('/api/settings');
         const data = await res.json();
 
+        console.log('Settings loaded:', data);
+
         document.getElementById('api-key').value = data.api_key;
 
         // Dynamisch accounts render
@@ -124,23 +129,26 @@ async function loadSettings() {
         accountsList.innerHTML = '';
 
         if (data.accounts && data.accounts.length > 0) {
+            console.log('Rendering', data.accounts.length, 'accounts');
             data.accounts.forEach((steamId, index) => {
                 const accountNum = index + 1;
                 const html = `
-                    <div class="form-group">
-                        <label for="steam-id-${accountNum}">Account ${accountNum} Steam ID:</label>
-                        <div style="display: flex; gap: 10px;">
-                            <input type="text" id="steam-id-${accountNum}" value="${steamId}" placeholder="76561198..." style="flex: 1;">
-                            <button type="button" class="btn btn-secondary" onclick="removeAccount(${accountNum})" style="padding: 8px 12px;">🗑️ Verwijderen</button>
+                    <div class="account-settings-item" style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--secondary); border-radius: 6px; margin-bottom: 10px;">
+                        <div style="flex: 1;">
+                            <strong>Account ${accountNum}</strong>
+                            <div style="font-family: monospace; color: #8b949e; font-size: 0.9em; margin-top: 4px;">${steamId}</div>
                         </div>
+                        <button type="button" class="btn btn-danger" onclick="removeAccountImmediate('${steamId}')" style="padding: 8px 12px; white-space: nowrap;">🗑️ Verwijderen</button>
                     </div>
                 `;
                 accountsList.innerHTML += html;
             });
         } else {
+            console.log('No accounts found');
             accountsList.innerHTML = '<p style="color: #8b949e;">Geen accounts ingesteld. Voeg er een toe!</p>';
         }
     } catch (e) {
+        console.error('Error loading settings:', e);
         showNotification('Kon instellingen niet laden: ' + e, 'error');
     }
 }
@@ -195,6 +203,41 @@ function removeAccount(accountNum) {
     if (input) {
         input.parentElement.parentElement.remove();
         showNotification('Account verwijderd. Klik Opslaan om te bevestigen.');
+    }
+}
+
+async function removeAccountImmediate(steamId) {
+    // Confirm deletion
+    if (!confirm(`Account ${steamId} verwijderen?`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+
+        // Filter out the account to delete
+        const updatedAccounts = data.accounts.filter(id => id !== steamId);
+
+        // Save immediately
+        const saveRes = await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                api_key: data.api_key,
+                accounts: updatedAccounts
+            })
+        });
+
+        if (saveRes.ok) {
+            showNotification('✅ Account verwijderd');
+            // Reload settings to refresh the list
+            setTimeout(() => loadSettings(), 500);
+        } else {
+            showNotification('Fout bij verwijderen van account', 'error');
+        }
+    } catch (e) {
+        showNotification('Fout: ' + e, 'error');
     }
 }
 
@@ -257,16 +300,21 @@ async function fetchAccount(accountId) {
 }
 
 function viewGames(accountId) {
+    currentAccountId = accountId;
+    currentOffset = 0;
     document.getElementById('current-account').textContent = accountId;
     showSection('games-section');
-    loadGames(accountId);
+    loadGames(accountId, currentOffset);
 }
 
-async function loadGames(accountId) {
+async function loadGames(accountId, offset = 0) {
     if (!accountId) {
         // Haal account ID uit de pagina
         accountId = document.getElementById('current-account').textContent;
     }
+
+    currentAccountId = accountId;
+    currentOffset = offset;
 
     const container = document.getElementById('games-container');
     container.innerHTML = '<p>⏳ Games laden...</p>';
@@ -283,7 +331,8 @@ async function loadGames(accountId) {
     if (document.getElementById('paid-only').checked) params.append('paid_only', 'true');
     if (document.getElementById('free-only').checked) params.append('free_only', 'true');
     if (document.getElementById('sort-asc').checked) params.append('sort_asc', 'true');
-    params.append('limit', 200);
+    params.append('limit', PAGE_SIZE);
+    params.append('offset', offset);
 
     try {
         const res = await fetch(`/api/games/${accountId}?${params}`);
@@ -295,9 +344,17 @@ async function loadGames(accountId) {
         }
 
         // Build table
+        const totalHours = Number(data.total_hours ?? 0).toFixed(2);
+        const rangeStart = data.offset + 1;
+        const rangeEnd = data.offset + data.games.length;
+        const hasPrev = data.offset > 0;
+        const hasNext = data.has_more;
+
         let html = `
             <p style="padding: 10px 16px; color: #8b949e;">
-                Totaal: ${data.total} games (top 200 weergegeven)
+                Totaal: ${data.total} games (alle speeltijd opgeteld: ${totalHours} uur)
+                <br>
+                Getoond: ${rangeStart}-${rangeEnd} (pagina-grootte ${data.limit})
             </p>
             <table>
                 <thead>
@@ -335,6 +392,15 @@ async function loadGames(accountId) {
         }
 
         html += `</tbody></table>`;
+
+        // Pagination controls
+        html += `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px;">
+                <button class="btn btn-secondary" ${hasPrev ? '' : 'disabled'} onclick="loadGames('${accountId}', ${Math.max(data.offset - data.limit, 0)})">← Vorige ${data.limit}</button>
+                <span style="color: #8b949e;">Pagina ${Math.floor(data.offset / data.limit) + 1} / ${Math.max(Math.ceil(data.total / data.limit), 1)}</span>
+                <button class="btn btn-secondary" ${hasNext ? '' : 'disabled'} onclick="loadGames('${accountId}', ${data.offset + data.limit})">Volgende ${data.limit} →</button>
+            </div>
+        `;
         container.innerHTML = html;
     } catch (e) {
         container.innerHTML = `<p>❌ Fout: ${e}</p>`;

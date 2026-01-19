@@ -6,7 +6,7 @@ Keuze tussen **CLI** (commandline) en **Web Interface** voor het beheren van mee
 ## ✨ Features
 
 - **🔐 .env configuratie**: API key en meerdere Steam accounts in `.env` bestand
-- **👥 Multi-account support**: Beheer tot 3 accounts per machine, of voeg elk Steam ID in
+- **👥 Multi-account support**: Beheer tot 1000 accounts per machine, of voeg elk Steam ID in
 - **💾 Centrale free-to-play cache**: Eenmalig ingezameld, gedeeld tussen alle accounts
 - **📁 Automatische bestandsnamen**: Elk account krijgt z'n eigen JSON
 - **🌐 Web Interface**: Makkelijk dashboard voor account beheer en data viewing

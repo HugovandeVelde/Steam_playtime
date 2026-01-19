@@ -94,8 +94,25 @@
                         <small>Je sleutels worden alleen lokaal opgeslagen en nooit gedeeld.</small>
                     </div>
 
+                    <h3 style="margin-top: 30px; margin-bottom: 15px;">Je Accounts</h3>
                     <div id="accounts-list">
-                        <!-- Dynamisch gevuld met JavaScript -->
+                        {% if accounts_list %}
+                        {% for steam_id in accounts_list %}
+                        <div class="account-settings-item"
+                            style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--secondary); border-radius: 6px; margin-bottom: 10px;">
+                            <div style="flex: 1;">
+                                <strong>Account {{ loop.index }}</strong>
+                                <div style="font-family: monospace; color: #8b949e; font-size: 0.9em; margin-top: 4px;">
+                                    {{ steam_id }}</div>
+                            </div>
+                            <button type="button" class="btn btn-danger"
+                                onclick="removeAccountImmediate('{{ steam_id }}')"
+                                style="padding: 8px 12px; white-space: nowrap;">🗑️ Verwijderen</button>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <p style="color: #8b949e;">Geen accounts ingesteld. Voeg er een toe!</p>
+                        {% endif %}
                     </div>
 
                     <button type="button" onclick="saveSettings()" class="btn btn-primary">💾 Opslaan</button>

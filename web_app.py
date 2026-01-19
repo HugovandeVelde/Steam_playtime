@@ -169,6 +169,7 @@ def index():
 
     return render_template('index.html',
                            accounts=accounts,
+                           accounts_list=accounts_list,
                            api_key_set=bool(config.get("STEAM_API_KEY")))
 
 
@@ -351,7 +352,10 @@ def get_account_games(account_id: int):
         paid_only = request.args.get('paid_only', type=bool)
         free_only = request.args.get('free_only', type=bool)
         sort_asc = request.args.get('sort_asc', type=bool)
-        limit = request.args.get('limit', type=int, default=50)
+        limit = request.args.get('limit', type=int, default=200)
+        offset = request.args.get('offset', type=int, default=0)
+        offset = max(offset or 0, 0)
+        limit = max(limit or 0, 0) if limit is not None else 0
 
         # Filter
         filtered = filter_rows(rows, min_min, max_min, only_zero or False,
@@ -361,12 +365,24 @@ def get_account_games(account_id: int):
         # Sort
         sorted_rows = sort_rows(filtered, ascending=sort_asc or False)
 
-        # Limit
-        result = sorted_rows[:limit] if limit else sorted_rows
+        # Aggregate totals before limiting so the user sees full-playtime sums
+        total_minutes = sum(r.get("minutes", 0) or 0 for r in sorted_rows)
+        total_hours = round(total_minutes / 60, 2)
+
+        # Limit + offset (pagination)
+        end_idx = offset + limit if limit else None
+        result = sorted_rows[offset:end_idx]
+
+        has_more = (offset + len(result)) < len(sorted_rows)
 
         return jsonify({
             "games": result,
             "total": len(sorted_rows),
+            "offset": offset,
+            "limit": limit,
+            "has_more": has_more,
+            "total_minutes": total_minutes,
+            "total_hours": total_hours,
             "steam_id": steam_id
         })
     except Exception as e:

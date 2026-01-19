@@ -162,6 +162,16 @@ nav {
     color: #fff;
 }
 
+.btn-danger {
+    background: #da3633;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #f85149;
+    opacity: 0.9;
+}
+
 .btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;

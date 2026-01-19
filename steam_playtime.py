@@ -51,7 +51,11 @@ def load_env(path: Optional[Path] = None) -> Dict[str, str]:
 
 
 def build_api_url(api_key: str, steam_id: str) -> str:
-    return f"{BASE_API_URL}?key={api_key}&steamid={steam_id}&include_appinfo=true"
+    """Build Steam GetOwnedGames URL including free games and app info."""
+    return (f"{BASE_API_URL}?key={api_key}&steamid={steam_id}"
+            "&include_appinfo=true"
+            "&include_played_free_games=true"
+            "&include_free_sub=true")
 
 
 def load_central_free_info(path: Path = Path("game_free_info.json")) -> Dict[
