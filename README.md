@@ -255,4 +255,4 @@ python steam_playtime.py --id 1 --csv games1.csv
 
 ---
 
-Questions? Issues? Suggestions? Welcome! 🎮
+Questions? Issues? Suggestions? Open a ticket under issues! 🎮
