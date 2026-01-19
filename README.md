@@ -9,85 +9,85 @@ Choose between **CLI** (command-line) and **Web Interface** for managing multipl
 
 ## ✨ Features
 
-- **🔐 .env configuratie**: API key en meerdere Steam accounts in `.env` bestand
-- **👥 Multi-account support**: Beheer tot 1000 accounts per machine, of voeg elk Steam ID in
-- **💾 Centrale free-to-play cache**: Eenmalig ingezameld, gedeeld tussen alle accounts
-- **📁 Automatische bestandsnamen**: Elk account krijgt z'n eigen JSON
-- **🌐 Web Interface**: Makkelijk dashboard voor account beheer en data viewing
-- **🖥️ CLI tool**: Voor geavanceerde filtering en exports
+- **🔐 .env configuration**: API key and multiple Steam accounts in `.env` file
+- **👥 Multi-account support**: Manage up to 1000 accounts per machine, or add any Steam ID
+- **💾 Central free-to-play cache**: Collected once, shared across all accounts
+- **📁 Automatic filenames**: Each account gets its own JSON
+- **🌐 Web Interface**: Easy dashboard for account management and data viewing
+- **🖥️ CLI tool**: For advanced filtering and exports
 
-## Installatie
+## Installation
 
 ```bash
-# Maak virtualenv (optioneel)
+# Create virtualenv (optional)
 python -m venv .venv
 .venv\Scripts\activate
 
-# Installeer dependencies
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-## Configuratie
+## Configuration
 
-Maak een `.env` bestand:
+Create a `.env` file:
 
 ```ini
 # Steam Web API Key (https://steamcommunity.com/dev/apikey)
-STEAM_API_KEY=jouw_api_key
+STEAM_API_KEY=your_api_key
 
-# Standaard Steam account IDs (1-3 optioneel)
+# Standard Steam account IDs (1-3 optional)
 STEAM_ID_1=76561198415456165
 STEAM_ID_2=76561198033137905
 STEAM_ID_3=
 ```
 
-## Web Interface (aanbevolen)
+## Web Interface (recommended)
 
-### Starten
+### Start
 
 ```bash
 python web_app.py
 ```
 
-Open je browser op: **http://localhost:5000**
+Open your browser at: **http://localhost:5000**
 
-### Functies
+### Features
 
-- **Dashboard**: Overzicht van je accounts met game count
-- **Ophalen**: Download nieuwste game data van Steam API
-- **Bekijken**: Filteren en sorteren van games met live filters
-- **Instellingen**: Beheer API key en Steam IDs
-- **Exports**: Download data als CSV of JSON
+- **Dashboard**: Overview of your accounts with game count
+- **Fetch**: Download latest game data from Steam API
+- **View**: Filter and sort games with live filters
+- **Settings**: Manage API key and Steam IDs
+- **Exports**: Download data as CSV or JSON
 
 ### Screenshots
 
 **Dashboard**
-- Account kaarten met game count
-- Knop "⬇️ Ophalen" om data op te halen
-- Link naar "Bekijken" voor game listing
+- Account cards with game count
+- "⬇️ Fetch" button to download data
+- Link to "View" for game listing
 
 **Games View**
-- Live filters: minuten range, only-zero, etc.
-- Tabel met AppID, Name, Minutes, Hours, Free/Paid status
-- Sorteren op minuten (op/aflopend)
+- Live filters: minutes range, only-zero, etc.
+- Table with AppID, Name, Minutes, Hours, Free/Paid status
+- Sort by minutes (ascending/descending)
 
-**Instellingen**
-- Veilig formulier voor API key en account IDs
-- Lokaal opgeslagen, nooit verzonden naar derden
+**Settings**
+- Secure form for API key and account IDs
+- Stored locally, never sent to third parties
 
 ---
 
 ## CLI Tool (command-line)
 
-Voor geavanceerder gebruik met scripts of batch operations.
+For more advanced use with scripts or batch operations.
 
-### Basis gebruik
+### Basic usage
 
 ```bash
 # Account 1 (default)
 python steam_playtime.py
 
-# Specifiek account
+# Specific account
 python steam_playtime.py --id 1
 python steam_playtime.py --id 2
 python steam_playtime.py --id 76561198033137905
@@ -96,10 +96,10 @@ python steam_playtime.py --id 76561198033137905
 ### Filtering
 
 ```bash
-# Gratis/betaalde games (eenmalig instellen)
+# Free/paid games (set up once)
 python steam_playtime.py --enrich-free-info
 
-# Daarna:
+# Then:
 python steam_playtime.py --id 1 --paid-only --top 30
 python steam_playtime.py --id 2 --free-only --sort-asc
 ```
@@ -107,62 +107,62 @@ python steam_playtime.py --id 2 --free-only --sort-asc
 ### Filters
 
 ```bash
---min-minutes X      # Minimaal aantal minuten
---max-minutes Y      # Maximaal aantal minuten
---only-zero          # Alleen games met 0 minuten
---exclude-zero       # Alle behalve 0 minuten
---paid-only          # Alleen niet-gratis
---free-only          # Alleen gratis
---sort-asc           # Oplopend sorteren (default: aflopend)
---top N              # Beperk tot N rijen
+--min-minutes X      # Minimum playtime in minutes
+--max-minutes Y      # Maximum playtime in minutes
+--only-zero          # Only games with 0 minutes
+--exclude-zero       # All except 0 minutes
+--paid-only          # Non-free games only
+--free-only          # Free games only
+--sort-asc           # Sort ascending (default: descending)
+--top N              # Limit to N rows
 ```
 
 ### Exports
 
 ```bash
---csv bestand.csv           # Exporteer naar CSV
---md bestand.md             # Exporteer naar Markdown
---xlsx bestand.xlsx         # Exporteer naar Excel
---show-hours                # Voeg Hours kolom toe
+--csv file.csv           # Export to CSV
+--md file.md             # Export to Markdown
+--xlsx file.xlsx         # Export to Excel
+--show-hours             # Add Hours column
 ```
 
-### ID-lijsten
+### ID Lists
 
 ```bash
---top-ids 30          # Print top 30 AppID's
---bottom-ids 30       # Print 30 minste
---ids-sep " | "       # Wijzig scheidingsteken
+--top-ids 30          # Print top 30 AppIDs
+--bottom-ids 30       # Print 30 least played
+--ids-sep " | "       # Change separator
 ```
 
-### Voorbeelden
+### Examples
 
 ```bash
-# Top 20 minst gespeelde betaalde games
+# Top 20 least played paid games
 python steam_playtime.py --id 1 --paid-only --sort-asc --top 20
 
-# Games met 1-10 uur speeltijd
+# Games with 1-10 hours playtime
 python steam_playtime.py --id 2 --min-minutes 60 --max-minutes 600
 
-# Exporteer top 100 naar Excel
+# Export top 100 to Excel
 python steam_playtime.py --top 100 --xlsx playtime.xlsx --show-hours
 
-# Offline mode (bestaande JSON)
+# Offline mode (existing JSON)
 python steam_playtime.py --offline --id 1 --top 30
 
-# AppID's van de 50 minst gespeelde games
+# AppIDs of 50 least played games
 python steam_playtime.py --bottom-ids 50 --ids-sep ", "
 ```
 
 ---
 
-## Bestandsstructuur
+## File Structure
 
 ```
 Steamspul/
 ├── steam_playtime.py          # CLI tool
 ├── web_app.py                 # Flask web interface
-├── .env                        # Configuratie (niet in git!)
-├── game_free_info.json        # Centrale free-to-play cache
+├── .env                        # Configuration (not in git!)
+├── game_free_info.json        # Central free-to-play cache
 ├── owned_games_*.json         # Per-account game data
 ├── requirements.txt           # Python dependencies
 ├── templates/
@@ -174,48 +174,48 @@ Steamspul/
 
 ---
 
-## Gedrag & Cache
+## Behavior & Cache
 
 ### Per-account JSON
-Elk Steam ID krijgt z'n eigen JSON bestand: `owned_games_{steamid}.json`
+Each Steam ID gets its own JSON file: `owned_games_{steamid}.json`
 
-### Centrale Free-to-Play Cache
-`game_free_info.json` bevat free-to-play status voor alle games.
-- Eenmalig ingezameld (kan 2-3 minuten duren)
-- Wordt gedeeld tussen alle accounts
-- Automatisch bijgewerkt bij nieuwe accounts
+### Central Free-to-Play Cache
+`game_free_info.json` contains free-to-play status for all games.
+- Collected once (can take 2-3 minutes)
+- Shared between all accounts
+- Automatically updated for new accounts
 
-### Achtergrond Scanning
-Bij normaal gebruik (zonder `--paid-only`) worden nieuwe games op de achtergrond gescand.
-- Verspilt geen tijd van je huidige sessie
-- Data wordt opgeslagen voor volgende keer
+### Background Scanning
+During normal use (without `--paid-only`), new games are scanned in the background.
+- Doesn't waste your session time
+- Data is stored for next time
 
 ---
 
 ## Tips
 
-### API Key Ophalen
-1. Ga naar https://steamcommunity.com/dev/apikey
-2. Log in met je Steam account
-3. Accepteer de voorwaarden
-4. Kopieer je key naar `.env`
+### Get API Key
+1. Go to https://steamcommunity.com/dev/apikey
+2. Log in with your Steam account
+3. Accept the terms
+4. Copy your key to `.env`
 
-### Steam ID Vinden
-1. Ga naar je Steam profiel
-2. Kijk naar de URL: `https://steamcommunity.com/profiles/**76561198xxxxxxxx**`
-3. Dit getal is je Steam ID
+### Find Steam ID
+1. Go to your Steam profile
+2. Check the URL: `https://steamcommunity.com/profiles/**76561198xxxxxxxx**`
+3. That number is your Steam ID
 
-### Meerdere Machines
-Je kunt dezelfde `.env` gebruiken op meerdere machines:
-- Game data blijft gescheiden (`owned_games_{steamid}.json` per account)
-- Free-to-play info (`game_free_info.json`) kan gedeeld worden
+### Multiple Machines
+You can use the same `.env` on multiple machines:
+- Game data stays separate (`owned_games_{steamid}.json` per account)
+- Free-to-play info (`game_free_info.json`) can be shared
 
-### Automatiseren
-Wil je data regelmatig ophalen?
+### Automate
+Want to fetch data regularly?
 
-**Windows (Taakplanner):**
+**Windows (Task Scheduler):**
 ```batch
-cd C:\pad\naar\Steamspul
+cd C:\path\to\Steamspul
 python steam_playtime.py --id 1 --csv games1.csv
 ```
 
@@ -228,31 +228,31 @@ python steam_playtime.py --id 1 --csv games1.csv
 
 ## Troubleshooting
 
-**API Key geweigerd?**
-- Check of je key correct is op https://steamcommunity.com/dev/apikey
-- API key werkt alleen voor private data (je eigen account)
+**API Key rejected?**
+- Check your key is correct at https://steamcommunity.com/dev/apikey
+- API key only works for private data (your own account)
 
-**Geen games opgehaald?**
-- Zorg dat je Steam ID correct is
-- Account moet public zijn (minstens: "Friends Only" speeluren)
-- Check je internet verbinding
+**No games fetched?**
+- Make sure your Steam ID is correct
+- Account must be public (at least: "Friends Only" playtime)
+- Check your internet connection
 
-**Free-to-play filtering werkt niet?**
-- Run eerst: `python steam_playtime.py --enrich-free-info`
-- Dit verzamelt free-to-play status voor alle games
+**Free-to-play filtering not working?**
+- Run first: `python steam_playtime.py --enrich-free-info`
+- This collects free-to-play status for all games
 
-**Web interface start niet?**
+**Web interface won't start?**
 - Check: `pip install flask`
-- Poort 5000 bezet? Run: `python web_app.py --port 5001`
+- Port 5000 busy? Run: `python web_app.py --port 5001`
 
 ---
 
-## Licentie & Privacy
+## License & Privacy
 
-- **Privacy**: Alle data blijft lokaal. API keys worden NIET gedeeld.
-- **Steam Terms**: Respecteer [Steam's API ToS](https://steamcommunity.com/dev/apiterms)
-- **Gratis**: Open source project
+- **Privacy**: All data stays local. API keys are NOT shared.
+- **Steam Terms**: Respect [Steam's API ToS](https://steamcommunity.com/dev/apiterms)
+- **Free**: Open source project
 
 ---
 
-Vragen? Issues? Suggestions? Welkom! 🎮
+Questions? Issues? Suggestions? Welcome! 🎮
