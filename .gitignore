@@ -14,3 +14,4 @@ venv/
 staticfiles/
 media/
 .scannerwork/
+sonar-project.properties
