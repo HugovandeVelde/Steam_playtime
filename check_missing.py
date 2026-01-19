@@ -34,3 +34,5 @@ print(f'Games NOT in game_free_info: {len(missing)}')
 nulls = sum(1 for v in game_free_info.values() if v is None)
 print(f'Games with null value: {nulls}')
 print(f'Total untested (missing + nulls): {len(missing) + nulls}')
+
+# .
