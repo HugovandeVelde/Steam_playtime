@@ -895,6 +895,3 @@ def retry_all_untested_games():
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
-
-
-# End of web_app.py
