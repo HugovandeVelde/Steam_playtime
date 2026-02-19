@@ -1,5 +1,5 @@
 // Helper functions
-const PAGE_SIZE = 200;
+const PAGE_SIZE = 500;
 let currentOffset = 0;
 let currentAccountId = null;
 function showSection(sectionId) {
@@ -112,6 +112,15 @@ function showNotification(message, type = 'success') {
     document.body.appendChild(notif);
 
     setTimeout(() => notif.remove(), 3000);
+}
+
+function copyAppId(appid) {
+    navigator.clipboard.writeText(appid).then(() => {
+        showNotification(`📋 AppID ${appid} gekopieerd naar klembord`);
+    }).catch(err => {
+        console.error('Fout bij kopiëren:', err);
+        showNotification('Fout bij kopiëren naar klembord', 'error');
+    });
 }
 
 // Settings
@@ -352,9 +361,9 @@ async function loadGames(accountId, offset = 0) {
 
         let html = `
             <p style="padding: 10px 16px; color: #8b949e;">
-                Totaal: ${data.total} games (alle speeltijd opgeteld: ${totalHours} uur)
+                Totaal: ${Number(data.total).toLocaleString()} games (alle speeltijd opgeteld: ${Number(totalHours).toLocaleString()} uur)
                 <br>
-                Getoond: ${rangeStart}-${rangeEnd} (pagina-grootte ${data.limit})
+                Getoond: ${Number(rangeStart).toLocaleString()}-${Number(rangeEnd).toLocaleString()} (pagina-grootte ${Number(data.limit).toLocaleString()})
             </p>
             <table>
                 <thead>
@@ -382,10 +391,10 @@ async function loadGames(accountId, offset = 0) {
 
             html += `
                 <tr>
-                    <td><a href="${storeUrl}" target="_blank" style="color: #1f6feb; text-decoration: none; cursor: pointer;">${game.appid}</a></td>
+                    <td><span style="color: #1f6feb; text-decoration: underline; cursor: pointer;" onclick="copyAppId(${game.appid})">${game.appid}</span></td>
                     <td><a href="${storeUrl}" target="_blank" style="color: #1f6feb; text-decoration: none; cursor: pointer;">${game.name}</a></td>
-                    <td style="text-align: right;">${game.minutes}</td>
-                    <td style="text-align: right;">${hours}h</td>
+                    <td style="text-align: right;">${Number(game.minutes).toLocaleString()}</td>
+                    <td style="text-align: right;">${Number(hours).toLocaleString()}h</td>
                     <td>${freeStatus}</td>
                 </tr>
             `;
@@ -476,9 +485,9 @@ async function loadAllUntestedGames() {
 
             html += `
                 <tr>
-                    <td style="text-align: right;"><a href="${storeUrl}" target="_blank" style="color: #1f6feb;">${game.appid}</a></td>
+                    <td style="text-align: right;"><span style="color: #1f6feb; text-decoration: underline; cursor: pointer;" onclick="copyAppId(${game.appid})">${game.appid}</span></td>
                     <td><a href="${storeUrl}" target="_blank" style="color: #1f6feb;">${game.name}</a></td>
-                    <td style="text-align: right;">${game.minutes}m (${hours}h)</td>
+                    <td style="text-align: right;">${Number(game.minutes).toLocaleString()}m (${Number(hours).toLocaleString()}h)</td>
                     <td style="text-align: center;">
                         <button class="btn btn-status-free" onclick="setGameFree(event, ${game.account_id}, ${game.appid})">✅ Gratis</button>
                         <button class="btn btn-status-paid" onclick="setGamePaid(event, ${game.account_id}, ${game.appid})">💰 Betaald</button>
