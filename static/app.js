@@ -123,6 +123,65 @@ function copyAppId(appid) {
     });
 }
 
+// Multi-select tracking
+let selectedAppIds = new Set();
+
+function toggleAppIdSelection(appid, checkbox) {
+    if (checkbox.checked) {
+        selectedAppIds.add(appid);
+    } else {
+        selectedAppIds.delete(appid);
+    }
+    updateSelectionUI();
+}
+
+function toggleSelectAll(selectAllCheckbox) {
+    const checkboxes = document.querySelectorAll('input[data-appid-checkbox]');
+    checkboxes.forEach(cb => {
+        cb.checked = selectAllCheckbox.checked;
+        const appid = cb.getAttribute('data-appid');
+        if (selectAllCheckbox.checked) {
+            selectedAppIds.add(parseInt(appid));
+        } else {
+            selectedAppIds.delete(parseInt(appid));
+        }
+    });
+    updateSelectionUI();
+}
+
+function updateSelectionUI() {
+    const btn = document.getElementById('copy-selected-btn');
+    if (btn) {
+        if (selectedAppIds.size > 0) {
+            btn.style.display = 'inline-block';
+            btn.textContent = `📋 Kopieer ${selectedAppIds.size} geselecteerde`;
+        } else {
+            btn.style.display = 'none';
+        }
+    }
+}
+
+function copySelectedAppIds() {
+    if (selectedAppIds.size === 0) {
+        showNotification('Geen games geselecteerd', 'error');
+        return;
+    }
+
+    const ids = Array.from(selectedAppIds).sort((a, b) => a - b).join(', ');
+    navigator.clipboard.writeText(ids).then(() => {
+        showNotification(`📋 ${selectedAppIds.size} AppIDs gekopieerd: ${ids}`);
+        selectedAppIds.clear();
+        updateSelectionUI();
+        // Uncheck all checkboxes
+        document.querySelectorAll('input[data-appid-checkbox]').forEach(cb => cb.checked = false);
+        const selectAllCheckbox = document.getElementById('select-all-checkbox');
+        if (selectAllCheckbox) selectAllCheckbox.checked = false;
+    }).catch(err => {
+        console.error('Fout bij kopiëren:', err);
+        showNotification('Fout bij kopiëren naar klembord', 'error');
+    });
+}
+
 // Settings
 async function loadSettings() {
     try {
@@ -365,9 +424,11 @@ async function loadGames(accountId, offset = 0) {
                 <br>
                 Getoond: ${Number(rangeStart).toLocaleString()}-${Number(rangeEnd).toLocaleString()} (pagina-grootte ${Number(data.limit).toLocaleString()})
             </p>
+            <button id="copy-selected-btn" class="btn btn-secondary" onclick="copySelectedAppIds()" style="display: none; margin-bottom: 12px;">📋 Kopieer geselecteerde</button>
             <table>
                 <thead>
                     <tr>
+                        <th style="width: 40px;"><input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll(this)"></th>
                         <th>AppID</th>
                         <th>Naam</th>
                         <th style="text-align: right;">Minuten</th>
@@ -391,6 +452,7 @@ async function loadGames(accountId, offset = 0) {
 
             html += `
                 <tr>
+                    <td style="text-align: center;"><input type="checkbox" data-appid-checkbox data-appid="${game.appid}" onchange="toggleAppIdSelection(${game.appid}, this)"></td>
                     <td><span style="color: #1f6feb; text-decoration: underline; cursor: pointer;" onclick="copyAppId(${game.appid})">${game.appid}</span></td>
                     <td><a href="${storeUrl}" target="_blank" style="color: #1f6feb; text-decoration: none; cursor: pointer;">${game.name}</a></td>
                     <td style="text-align: right;">${Number(game.minutes).toLocaleString()}</td>
@@ -467,9 +529,11 @@ async function loadAllUntestedGames() {
             <p style="padding: 10px 16px; color: #8b949e;">
                 Totaal: ${data.count} untested games (gesorteerd op App ID)
             </p>
+            <button id="copy-selected-untested-btn" class="btn btn-secondary" onclick="copySelectedUntestedAppIds()" style="display: none; margin-bottom: 12px;">📋 Kopieer geselecteerde</button>
             <table class="untested-table">
                 <thead>
                     <tr>
+                        <th style="width: 40px;"><input type="checkbox" id="select-all-untested-checkbox" onchange="toggleSelectAllUntested(this)"></th>
                         <th style="text-align: right;">AppID</th>
                         <th>Naam</th>
                         <th style="text-align: right;">Minuten</th>
@@ -485,6 +549,7 @@ async function loadAllUntestedGames() {
 
             html += `
                 <tr>
+                    <td style="text-align: center;"><input type="checkbox" data-untested-appid-checkbox data-appid="${game.appid}" onchange="toggleUntestedAppIdSelection(${game.appid}, this)"></td>
                     <td style="text-align: right;"><span style="color: #1f6feb; text-decoration: underline; cursor: pointer;" onclick="copyAppId(${game.appid})">${game.appid}</span></td>
                     <td><a href="${storeUrl}" target="_blank" style="color: #1f6feb;">${game.name}</a></td>
                     <td style="text-align: right;">${Number(game.minutes).toLocaleString()}m (${Number(hours).toLocaleString()}h)</td>
@@ -570,4 +635,63 @@ async function retryAllUntestedGames(e) {
         btn.disabled = false;
         btn.textContent = '🔁 Alle Opnieuw Scannen';
     }
+}
+
+// Untested games multi-select tracking
+let selectedUntestedAppIds = new Set();
+
+function toggleUntestedAppIdSelection(appid, checkbox) {
+    if (checkbox.checked) {
+        selectedUntestedAppIds.add(appid);
+    } else {
+        selectedUntestedAppIds.delete(appid);
+    }
+    updateUntestedSelectionUI();
+}
+
+function toggleSelectAllUntested(selectAllCheckbox) {
+    const checkboxes = document.querySelectorAll('input[data-untested-appid-checkbox]');
+    checkboxes.forEach(cb => {
+        cb.checked = selectAllCheckbox.checked;
+        const appid = cb.getAttribute('data-appid');
+        if (selectAllCheckbox.checked) {
+            selectedUntestedAppIds.add(parseInt(appid));
+        } else {
+            selectedUntestedAppIds.delete(parseInt(appid));
+        }
+    });
+    updateUntestedSelectionUI();
+}
+
+function updateUntestedSelectionUI() {
+    const btn = document.getElementById('copy-selected-untested-btn');
+    if (btn) {
+        if (selectedUntestedAppIds.size > 0) {
+            btn.style.display = 'inline-block';
+            btn.textContent = `📋 Kopieer ${selectedUntestedAppIds.size} geselecteerde`;
+        } else {
+            btn.style.display = 'none';
+        }
+    }
+}
+
+function copySelectedUntestedAppIds() {
+    if (selectedUntestedAppIds.size === 0) {
+        showNotification('Geen games geselecteerd', 'error');
+        return;
+    }
+
+    const ids = Array.from(selectedUntestedAppIds).sort((a, b) => a - b).join(', ');
+    navigator.clipboard.writeText(ids).then(() => {
+        showNotification(`📋 ${selectedUntestedAppIds.size} AppIDs gekopieerd: ${ids}`);
+        selectedUntestedAppIds.clear();
+        updateUntestedSelectionUI();
+        // Uncheck all checkboxes
+        document.querySelectorAll('input[data-untested-appid-checkbox]').forEach(cb => cb.checked = false);
+        const selectAllCheckbox = document.getElementById('select-all-untested-checkbox');
+        if (selectAllCheckbox) selectAllCheckbox.checked = false;
+    }).catch(err => {
+        console.error('Fout bij kopiëren:', err);
+        showNotification('Fout bij kopiëren naar klembord', 'error');
+    });
 }

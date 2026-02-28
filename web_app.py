@@ -30,9 +30,9 @@ from steam_playtime import (load_env, save_central_free_info,
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.config['JSON_SORT_KEYS'] = False
 
-ENV_FILE = Path(".env")
-DATA_DIR = Path(".")
-PROFILES_CACHE = Path("profiles_cache.json")
+ENV_FILE = Path(__file__).parent / ".env"
+DATA_DIR = Path(__file__).parent
+PROFILES_CACHE = Path(__file__).parent / "profiles_cache.json"
 ACCOUNT_NOT_CONFIGURED = "Account niet geconfigureerd"
 FETCH_REQUIRED = "Haal eerst data op"
 
