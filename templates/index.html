@@ -34,9 +34,9 @@
                         <p class="steam-id">ID: {{ account.steam_id }}</p>
                         <p class="game-count">
                             {% if account.exists %}
-                            ✅ {{ account.game_count }} games
+                            {{ account.game_count }} games | {{ account.total_hours }} uur gespeeld
                             {% else %}
-                            ❌ Geen data
+                            Geen data
                             {% endif %}
                         </p>
                         <div class="account-actions">

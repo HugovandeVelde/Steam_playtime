@@ -36,6 +36,39 @@ PROFILES_CACHE = Path(__file__).parent / "profiles_cache.json"
 ACCOUNT_NOT_CONFIGURED = "Account niet geconfigureerd"
 FETCH_REQUIRED = "Haal eerst data op"
 
+# Track background enrichment status per steam_id
+_enrichment_status: Dict[str, Dict[str, Any]] = {}
+_enrichment_lock = threading.Lock()
+
+
+def set_enrichment_status(steam_id: str, status: str,
+                          message: str = "") -> None:
+    with _enrichment_lock:
+        _enrichment_status[steam_id] = {
+            "status": status,
+            "started_at": time.time(),
+            "message": message
+        }
+
+
+def get_enrichment_status(steam_id: str) -> Dict[str, Any]:
+    with _enrichment_lock:
+        return _enrichment_status.get(steam_id, {"status": "idle"})
+
+
+def _update_per_account_file(json_path: Path,
+                             free_info: Dict[int, Any]) -> None:
+    """Update a per-account JSON file with the latest free/paid info."""
+    try:
+        data = json.loads(json_path.read_text(encoding="utf-8"))
+        for game in data.get("response", {}).get("games", []):
+            appid = game.get("appid")
+            if appid in free_info and free_info[appid] is not None:
+                game["is_free"] = free_info[appid]
+        save_json(data, json_path)
+    except Exception:
+        pass
+
 
 def get_env_config() -> Dict[str, str]:
     """Get current environment configuration."""
@@ -155,6 +188,7 @@ def index():
             "steam_id": steam_id,
             "exists": json_file.exists(),
             "game_count": 0,
+            "total_hours": 0,
             "persona_name": cached_profile.get("persona_name", "Unknown"),
             "avatar_url": cached_profile.get("avatar_url", "")
         }
@@ -162,8 +196,11 @@ def index():
         if json_file.exists():
             try:
                 data = json.loads(json_file.read_text(encoding="utf-8"))
-                accounts[idx]["game_count"] = len(
-                    data.get("response", {}).get("games", []))
+                games = data.get("response", {}).get("games", [])
+                accounts[idx]["game_count"] = len(games)
+                total_minutes = sum(
+                    int(g.get("playtime_forever", 0) or 0) for g in games)
+                accounts[idx]["total_hours"] = round(total_minutes / 60, 1)
             except (json.JSONDecodeError, IOError):
                 pass
 
@@ -344,6 +381,13 @@ def get_account_games(account_id: int):
     try:
         rows = load_games_from_json(json_file)
 
+        # Overlay latest central free info for most up-to-date status
+        central_free_info = load_central_free_info()
+        for r in rows:
+            appid = r.get("appid")
+            if appid in central_free_info:
+                r["is_free"] = central_free_info[appid]
+
         # Query parameters voor filtering
         min_min = request.args.get('min_minutes', type=int)
         max_min = request.args.get('max_minutes', type=int)
@@ -442,10 +486,18 @@ def fetch_account_data(account_id: int):
             rows = load_games_from_json(json_path)
 
             def run_enrich():
-                new_info = enrich_with_free_info(rows, central_free_info)
-                save_central_free_info(new_info)
-                # Sort after enrichment
-                sort_free_info_cache()
+                set_enrichment_status(
+                    steam_id, "running",
+                    f"{unknown_count} games worden gecontroleerd...")
+                try:
+                    new_info = enrich_with_free_info(rows, central_free_info)
+                    save_central_free_info(new_info)
+                    sort_free_info_cache()
+                    _update_per_account_file(json_path, new_info)
+                    set_enrichment_status(steam_id, "done",
+                                         "Enrichment voltooid")
+                except Exception as e:
+                    set_enrichment_status(steam_id, "error", str(e))
 
             thread = threading.Thread(target=run_enrich, daemon=False)
             thread.start()
@@ -455,7 +507,8 @@ def fetch_account_data(account_id: int):
                 "message":
                 f"✅ {game_count} games opgehaald. 🔄 {unknown_count} onbekende games worden op de achtergrond ingezameld...",
                 "game_count": game_count,
-                "unknown_count": unknown_count
+                "unknown_count": unknown_count,
+                "steam_id": steam_id
             })
 
         return jsonify({
@@ -463,7 +516,8 @@ def fetch_account_data(account_id: int):
             "message":
             f"✅ {game_count} games opgehaald. Alle games zijn bekend!",
             "game_count": game_count,
-            "unknown_count": 0
+            "unknown_count": 0,
+            "steam_id": steam_id
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -497,10 +551,17 @@ def enrich_account_free_info(account_id: int):
 
         # Run enrichment (kan lang duren)
         def run_enrich():
-            new_info = enrich_with_free_info(rows, central_free_info)
-            save_central_free_info(new_info)
-            # Sort after enrichment
-            sort_free_info_cache()
+            set_enrichment_status(steam_id, "running",
+                                  "Free-to-play info wordt ingezameld...")
+            try:
+                new_info = enrich_with_free_info(rows, central_free_info)
+                save_central_free_info(new_info)
+                sort_free_info_cache()
+                _update_per_account_file(json_file, new_info)
+                set_enrichment_status(steam_id, "done",
+                                     "Enrichment voltooid")
+            except Exception as e:
+                set_enrichment_status(steam_id, "error", str(e))
 
         thread = threading.Thread(target=run_enrich, daemon=False)
         thread.start()
@@ -509,10 +570,18 @@ def enrich_account_free_info(account_id: int):
             "status":
             "started",
             "message":
-            "🔄 Free-to-play info wordt ingezameld. Dit kan enkele minuten duren..."
+            "🔄 Free-to-play info wordt ingezameld. Dit kan enkele minuten duren...",
+            "steam_id": steam_id
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/enrich-status/<steam_id>')
+def enrich_status(steam_id: str):
+    """Check enrichment status for a steam account."""
+    status = get_enrichment_status(steam_id)
+    return jsonify(status)
 
 
 @app.route('/api/export/<int:account_id>/<format>')
@@ -722,9 +791,18 @@ def retry_untested_games(account_id: int):
 
         # Run enrichment in background
         def run_enrich():
-            new_info = enrich_with_free_info(rows, central_free_info)
-            save_central_free_info(new_info)
-            sort_free_info_cache()
+            set_enrichment_status(
+                steam_id, "running",
+                f"{len(untested_games)} untested games opnieuw controleren...")
+            try:
+                new_info = enrich_with_free_info(rows, central_free_info)
+                save_central_free_info(new_info)
+                sort_free_info_cache()
+                _update_per_account_file(json_file, new_info)
+                set_enrichment_status(steam_id, "done",
+                                     "Retry voltooid")
+            except Exception as e:
+                set_enrichment_status(steam_id, "error", str(e))
 
         thread = threading.Thread(target=run_enrich, daemon=False)
         thread.start()
@@ -733,7 +811,8 @@ def retry_untested_games(account_id: int):
             "status":
             "started",
             "message":
-            f"🔄 {len(untested_games)} untested games worden opnieuw gecontroleerd..."
+            f"🔄 {len(untested_games)} untested games worden opnieuw gecontroleerd...",
+            "steam_id": steam_id
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -808,74 +887,61 @@ def retry_all_untested_games():
 
     def run_retry_all():
         """Background function to retry all untested games."""
-        # Load central info
-        central_free_info = load_central_free_info()
+        set_enrichment_status("__all__", "running",
+                              "Alle untested games opnieuw scannen...")
+        try:
+            # Load central info
+            central_free_info = load_central_free_info()
 
-        # Get ALL untested appids from game_free_info.json (those with null value)
-        untested_appids = {
-            appid
-            for appid, status in central_free_info.items() if status is None
-        }
+            # Get ALL untested appids from game_free_info.json (those with null value)
+            untested_appids = {
+                appid
+                for appid, status in central_free_info.items()
+                if status is None
+            }
 
-        if not untested_appids:
-            return
+            if not untested_appids:
+                set_enrichment_status("__all__", "done",
+                                     "Geen untested games gevonden")
+                return
 
-        print(
-            f"🔄 Retrying {len(untested_appids)} untested games from cache...")
+            print(
+                f"🔄 Retrying {len(untested_appids)} untested games from cache..."
+            )
 
-        # Now fetch details for each untested appid
-        new_info = dict(central_free_info)
-        untested_games = []
+            # Now fetch details for each untested appid
+            new_info = dict(central_free_info)
+            untested_games = []
 
-        for i, appid in enumerate(untested_appids, 1):
-            is_free = fetch_game_details(int(appid))
-            new_info[int(appid)] = is_free
+            for i, appid in enumerate(untested_appids, 1):
+                is_free = fetch_game_details(int(appid))
+                new_info[int(appid)] = is_free
 
-            if is_free is None:
-                untested_games.append(appid)
+                if is_free is None:
+                    untested_games.append(appid)
 
-            if i % 10 == 0:
-                print(f"  ... {i}/{len(untested_appids)}")
+                if i % 10 == 0:
+                    print(f"  ... {i}/{len(untested_appids)}")
 
-        print(
-            f"✅ Retry complete: {len(untested_appids) - len(untested_games)} games verified"
-        )
+            print(
+                f"✅ Retry complete: {len(untested_appids) - len(untested_games)} games verified"
+            )
 
-        # Save updated info
-        save_central_free_info(new_info)
-        sort_free_info_cache()
+            # Save updated info
+            save_central_free_info(new_info)
+            sort_free_info_cache()
 
-        # Now update all owned_games files with the new info
-        print("📝 Updating owned_games files with new info...")
-        for account_id in accounts_list:
-            json_file = DATA_DIR / f"owned_games_{account_id}.json"
-            if not json_file.exists():
-                continue
+            # Now update all owned_games files with the new info
+            print("📝 Updating owned_games files with new info...")
+            for acct_id in accounts_list:
+                json_file = DATA_DIR / f"owned_games_{acct_id}.json"
+                _update_per_account_file(json_file, new_info)
 
-            try:
-                with open(json_file, 'r', encoding='utf-8',
-                          errors='replace') as f:
-                    data = json.load(f)
-
-                # Handle both structures
-                if isinstance(data, dict) and 'response' in data:
-                    games = data['response'].get('games', [])
-                else:
-                    games = data if isinstance(data, list) else []
-
-                # Update is_free for games that now have a value
-                for game in games:
-                    appid = int(game.get('appid', 0))
-                    if appid in new_info and new_info[appid] is not None:
-                        game['is_free'] = new_info[appid]
-
-                # Save back to file
-                with open(json_file, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, indent=2)
-            except Exception as e:
-                print(f"  ⚠️ Error updating {json_file}: {e}")
-
-        print("✅ All owned_games files updated")
+            print("✅ All owned_games files updated")
+            set_enrichment_status("__all__", "done",
+                                 "Retry voltooid")
+        except Exception as e:
+            set_enrichment_status("__all__", "error", str(e))
 
     # Count untested games from central cache
     central_free_info = load_central_free_info()

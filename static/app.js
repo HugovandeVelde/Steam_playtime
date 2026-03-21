@@ -2,6 +2,60 @@
 const PAGE_SIZE = 500;
 let currentOffset = 0;
 let currentAccountId = null;
+let enrichmentPollInterval = null;
+let enrichmentPollTimeout = null;
+
+function pollEnrichmentStatus(steamId) {
+    if (enrichmentPollInterval) clearInterval(enrichmentPollInterval);
+    if (enrichmentPollTimeout) clearTimeout(enrichmentPollTimeout);
+
+    enrichmentPollInterval = setInterval(async () => {
+        try {
+            const res = await fetch(`/api/enrich-status/${steamId}`);
+            const data = await res.json();
+
+            if (data.status === 'done') {
+                clearInterval(enrichmentPollInterval);
+                clearTimeout(enrichmentPollTimeout);
+                enrichmentPollInterval = null;
+                enrichmentPollTimeout = null;
+                showNotification('✅ Verrijking voltooid! Gegevens bijgewerkt.');
+
+                // If viewing untested section, reload untested games
+                const untestedSection = document.getElementById('untested-section');
+                if (untestedSection && untestedSection.style.display !== 'none') {
+                    loadAllUntestedGames();
+                }
+                // If viewing games, refresh the list
+                else {
+                    const gamesSection = document.getElementById('games-section');
+                    if (gamesSection && gamesSection.style.display !== 'none' && currentAccountId) {
+                        loadGames(currentAccountId, currentOffset);
+                    } else {
+                        // On dashboard, reload to update counts
+                        setTimeout(() => location.reload(), 500);
+                    }
+                }
+            } else if (data.status === 'error') {
+                clearInterval(enrichmentPollInterval);
+                clearTimeout(enrichmentPollTimeout);
+                enrichmentPollInterval = null;
+                enrichmentPollTimeout = null;
+                showNotification('Fout bij verrijking: ' + data.message, 'error');
+            }
+        } catch (e) {
+            console.warn('Poll error:', e);
+        }
+    }, 3000);
+
+    // Safety timeout: stop polling after 10 minutes
+    enrichmentPollTimeout = setTimeout(() => {
+        if (enrichmentPollInterval) {
+            clearInterval(enrichmentPollInterval);
+            enrichmentPollInterval = null;
+        }
+    }, 600000);
+}
 function showSection(sectionId) {
     document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
     document.getElementById(sectionId).style.display = 'block';
@@ -355,7 +409,12 @@ async function fetchAccount(accountId) {
 
         if (res.ok) {
             showNotification(data.message);
-            setTimeout(() => location.reload(), 1500);
+            if (data.unknown_count > 0 && data.steam_id) {
+                // Start polling for enrichment completion
+                pollEnrichmentStatus(data.steam_id);
+            } else {
+                setTimeout(() => location.reload(), 1000);
+            }
         } else {
             showNotification(data.message, 'error');
         }
@@ -493,7 +552,9 @@ async function enrichFreeInfo(accountId) {
 
         if (res.ok) {
             showNotification(data.message);
-            // Het proces loopt op de achtergrond, dus we kunnen direct feedback geven
+            if (data.steam_id) {
+                pollEnrichmentStatus(data.steam_id);
+            }
         } else {
             showNotification(data.error || 'Fout bij starten', 'error');
         }
@@ -622,10 +683,8 @@ async function retryAllUntestedGames(e) {
 
         if (res.ok) {
             showNotification(data.message);
-            // Reload untested games after a delay to show progress
-            setTimeout(() => {
-                loadAllUntestedGames();
-            }, 3000);
+            // Poll using special __all__ key
+            pollEnrichmentStatus('__all__');
         } else {
             showNotification(data.error || 'Fout bij retry', 'error');
         }
