@@ -23,26 +23,26 @@ from urllib.error import URLError, HTTPError
 BASE_API_URL = "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/"
 
 
-def load_env(path: Optional[Path] = None) -> Dict[str, str]:
-
+def _parse_env_file(path: Path) -> Dict[str, str]:
+    """Parse a .env file into a dict, silently ignoring errors."""
     env: Dict[str, str] = {}
-    if path is None:
-        path = Path(".env")
     try:
-        if path.exists():
-            for line in path.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if "=" in line:
-                    k, v = line.split("=", 1)
-                    k = k.strip()
-                    v = v.strip().strip('"').strip("'")
-                    env[k] = v
+        if not path.exists():
+            return env
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                k, v = line.split("=", 1)
+                env[k.strip()] = v.strip().strip('"').strip("'")
     except Exception:
-        # Silently ignore .env read issues; we'll rely on os.environ or error later when required
         pass
+    return env
 
+
+def load_env(path: Optional[Path] = None) -> Dict[str, str]:
+    env = _parse_env_file(path or Path(".env"))
     merged: Dict[str, str] = {**env}
     for k in ("STEAM_API_KEY", "STEAM_ID_1", "STEAM_ID_2", "STEAM_ID_3"):
         if k in os.environ and not merged.get(k):
@@ -65,7 +65,6 @@ def load_central_free_info(path: Path = Path("game_free_info.json")) -> Dict[
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        # Convert string keys back to int
         return {int(k): v for k, v in data.items()}
     except Exception:
         return {}
@@ -77,7 +76,6 @@ def save_central_free_info(
 ) -> None:
     """Save free-to-play info centrally for all accounts."""
     try:
-        # Convert int keys to strings for JSON
         data = {str(k): v for k, v in free_info.items()}
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2),
                         encoding="utf-8")
@@ -154,12 +152,25 @@ def fetch_game_details(appid: int) -> Optional[bool]:
     return None
 
 
+def _report_untested(untested: List[str]) -> None:
+    """Print a summary of games that couldn't be verified for free-to-play status."""
+    if not untested:
+        return
+    print(
+        f"❓ {len(untested)} games konden niet worden geverifieerd (Untested):"
+    )
+    for name in untested[:5]:
+        print(f"   - {name}")
+    if len(untested) > 5:
+        print(f"   ... en {len(untested)-5} meer")
+
+
 def enrich_with_free_info(
         rows: List[Dict[str, Any]],
         central_free_info: Dict[int,
                                 Optional[bool]]) -> Dict[int, Optional[bool]]:
     """Add free-to-play info to rows by querying Steam API if needed.
-    
+
     Returns updated central_free_info dictionary with newly discovered info.
     """
     missing = [
@@ -184,21 +195,13 @@ def enrich_with_free_info(
     for i, r in enumerate(missing, 1):
         is_free = fetch_game_details(r["appid"])
         if is_free is None:
-            # Steam API geeft geen data (beta/test versies), markeer als untested
             untested.append(r["name"])
         r["is_free"] = is_free
         new_info[r["appid"]] = is_free
         if i % 10 == 0:
             print(f"  ... {i}/{len(missing)}")
 
-    if untested:
-        print(
-            f"❓ {len(untested)} games konden niet worden geverifieerd (Untested):"
-        )
-        for name in untested[:5]:  # Toon max 5
-            print(f"   - {name}")
-        if len(untested) > 5:
-            print(f"   ... en {len(untested)-5} meer")
+    _report_untested(untested)
     print("✅ Free-to-play info toegevoegd en opgeslagen in centrale cache")
     return new_info
 
@@ -206,7 +209,7 @@ def enrich_with_free_info(
 def enrich_in_background(rows: List[Dict[str, Any]],
                          central_free_info: Dict[int, Optional[bool]]) -> None:
     """Background thread function to enrich free-to-play info without blocking.
-    
+
     This silently updates the central free-info cache in the background.
     IMPORTANT: Only saves values that were successfully verified (not None).
     """
@@ -234,6 +237,30 @@ def enrich_in_background(rows: List[Dict[str, Any]],
     save_central_free_info(new_info)
 
 
+def _row_passes_filter(r: Dict[str, Any],
+                       min_min: Optional[int],
+                       max_min: Optional[int],
+                       only_zero: bool,
+                       exclude_zero: bool,
+                       paid_only: bool,
+                       free_only: bool) -> bool:
+    """Check whether a single game row passes all filter criteria."""
+    m = r["minutes"]
+    if only_zero and m != 0:
+        return False
+    if exclude_zero and m == 0:
+        return False
+    if min_min is not None and m < min_min:
+        return False
+    if max_min is not None and m > max_min:
+        return False
+    if paid_only and r.get("is_free") is True:
+        return False
+    if free_only and r.get("is_free") is not True:
+        return False
+    return True
+
+
 def filter_rows(rows: List[Dict[str, Any]],
                 min_min: Optional[int],
                 max_min: Optional[int],
@@ -241,23 +268,9 @@ def filter_rows(rows: List[Dict[str, Any]],
                 exclude_zero: bool,
                 paid_only: bool = False,
                 free_only: bool = False) -> List[Dict[str, Any]]:
-    out = []
-    for r in rows:
-        m = r["minutes"]
-        if only_zero and m != 0:
-            continue
-        if exclude_zero and m == 0:
-            continue
-        if min_min is not None and m < min_min:
-            continue
-        if max_min is not None and m > max_min:
-            continue
-        if paid_only and r.get("is_free") is True:
-            continue
-        if free_only and r.get("is_free") is not True:
-            continue
-        out.append(r)
-    return out
+    return [r for r in rows
+            if _row_passes_filter(r, min_min, max_min, only_zero,
+                                  exclude_zero, paid_only, free_only)]
 
 
 def sort_rows(rows: List[Dict[str, Any]],
@@ -265,6 +278,30 @@ def sort_rows(rows: List[Dict[str, Any]],
     return sorted(rows,
                   key=lambda r: (r["minutes"], r["name"].lower(), r["appid"]),
                   reverse=not ascending)
+
+
+def _print_table_simple(table: List[list], show_hours: bool) -> None:
+    """Print a simple text table without the tabulate library."""
+    col1 = max(len("AppID"), *(len(str(x[0])) for x in table)) if table else len("AppID")
+    col2 = max(len("Game"), *(len(str(x[1])) for x in table)) if table else len("Game")
+    col3 = max(len("Minutes"), *(len(str(x[2])) for x in table)) if table else len("Minutes")
+    if show_hours:
+        col4 = max(len("Hours"), *(len(str(x[3])) for x in table)) if table else len("Hours")
+        print(
+            f"{'AppID':<{col1}}  {'Game':<{col2}}  {'Minutes':>{col3}}  {'Hours':>{col4}}"
+        )
+        print("-" * (col1 + col2 + col3 + col4 + 6))
+        for x in table:
+            print(
+                f"{str(x[0]):<{col1}}  {str(x[1]):<{col2}}  {str(x[2]):>{col3}}  {str(x[3]):>{col4}}"
+            )
+    else:
+        print(f"{'AppID':<{col1}}  {'Game':<{col2}}  {'Minutes':>{col3}}")
+        print("-" * (col1 + col2 + col3 + 4))
+        for x in table:
+            print(
+                f"{str(x[0]):<{col1}}  {str(x[1]):<{col2}}  {str(x[2]):>{col3}}"
+            )
 
 
 def print_table(rows: List[Dict[str, Any]], limit: Optional[int],
@@ -283,34 +320,9 @@ def print_table(rows: List[Dict[str, Any]], limit: Optional[int],
             row.append(f"{r['minutes']/60:.2f}")
         table.append(row)
     if tabulate:
-        fmt_headers = headers
-        print(tabulate(table, headers=fmt_headers, tablefmt="github"))
+        print(tabulate(table, headers=headers, tablefmt="github"))
     else:
-        # simple fallback
-        col1 = max(len("AppID"), *(len(str(x[0]))
-                                   for x in table)) if table else len("AppID")
-        col2 = max(len("Game"), *(len(str(x[1]))
-                                  for x in table)) if table else len("Game")
-        col3 = max(len("Minutes"), *(len(str(
-            x[2])) for x in table)) if table else len("Minutes")
-        if show_hours:
-            col4 = max(len("Hours"), *(len(str(
-                x[3])) for x in table)) if table else len("Hours")
-            print(
-                f"{'AppID':<{col1}}  {'Game':<{col2}}  {'Minutes':>{col3}}  {'Hours':>{col4}}"
-            )
-            print("-" * (col1 + col2 + col3 + col4 + 6))
-            for x in table:
-                print(
-                    f"{str(x[0]):<{col1}}  {str(x[1]):<{col2}}  {str(x[2]):>{col3}}  {str(x[3]):>{col4}}"
-                )
-        else:
-            print(f"{'AppID':<{col1}}  {'Game':<{col2}}  {'Minutes':>{col3}}")
-            print("-" * (col1 + col2 + col3 + 4))
-            for x in table:
-                print(
-                    f"{str(x[0]):<{col1}}  {str(x[1]):<{col2}}  {str(x[2]):>{col3}}"
-                )
+        _print_table_simple(table, show_hours)
 
 
 def export_csv(rows: List[Dict[str, Any]], path: Path) -> None:
@@ -476,37 +488,32 @@ def maybe_export_xlsx(rows: List[Dict[str, Any]], path: Path,
         sys.exit(f"❌ Kon Excel niet schrijven: {e}")
 
 
-def main():
-    args = parse_args()
-    env_vars = load_env(Path(args.env) if args.env else None)
+def resolve_steam_id(id_arg: Optional[str],
+                     env: Dict[str, str]) -> Optional[str]:
+    """Return the Steam ID to use based on CLI arg or .env defaults.
+    - None or empty -> STEAM_ID_1
+    - '1'/'2'/'3' -> STEAM_ID_1/2/3
+    - otherwise -> raw id_arg
+    """
+    if not id_arg:
+        return env.get("STEAM_ID_1")
+    s = str(id_arg).strip()
+    if s in {"1", "2", "3"}:
+        return env.get(f"STEAM_ID_{s}")
+    return s
 
-    def resolve_steam_id(id_arg: Optional[str],
-                         env: Dict[str, str]) -> Optional[str]:
-        """Return the Steam ID to use based on CLI arg or .env defaults.
-        - None or empty -> STEAM_ID_1
-        - '1'/'2'/'3' -> STEAM_ID_1/2/3
-        - otherwise -> raw id_arg
-        """
-        if not id_arg:
-            return env.get("STEAM_ID_1")
-        s = str(id_arg).strip()
-        if s in {"1", "2", "3"}:
-            return env.get(f"STEAM_ID_{s}")
-        return s
 
-    # Determine Steam ID first for dynamic filename
+def _determine_paths(args: argparse.Namespace,
+                     env_vars: Dict[str, str]) -> tuple:
+    """Determine steam_id_str and json_path from args and env."""
     steam_id_str = None
-    if not args.offline or args.output_json is None:
-        if args.api_url:
-            steam_id_str = None  # Can't extract from custom URL
-        else:
-            steam_id_str = resolve_steam_id(args.id, env_vars)
-            if not steam_id_str and not args.offline:
-                sys.exit(
-                    "❌ Steam ID ontbreekt. Gebruik --id 1/2/3 of zet STEAM_ID_1 in .env."
-                )
+    if (not args.offline or args.output_json is None) and not args.api_url:
+        steam_id_str = resolve_steam_id(args.id, env_vars)
+        if not steam_id_str and not args.offline:
+            sys.exit(
+                "❌ Steam ID ontbreekt. Gebruik --id 1/2/3 of zet STEAM_ID_1 in .env."
+            )
 
-    # Set output path (dynamic based on Steam ID if not specified)
     if args.output_json:
         json_path = Path(args.output_json)
     elif steam_id_str:
@@ -514,100 +521,78 @@ def main():
     else:
         json_path = Path("owned_games.json")
 
-    # Load central free-to-play info (shared across all accounts)
-    central_free_info = load_central_free_info()
+    return steam_id_str, json_path
 
-    # 1) Download altijd nieuwste JSON tenzij --offline is gezet
-    if not args.offline:
-        # Bepaal API-URL: expliciete override, anders opbouwen uit .env
-        if args.api_url:
-            api_url = args.api_url
-            steam_id_for_msg = None
-        else:
-            api_key = env_vars.get("STEAM_API_KEY")
-            if not api_key:
-                sys.exit(
-                    "❌ STEAM_API_KEY ontbreekt. Zet deze in .env of als omgevingsvariabele."
-                )
-            if not steam_id_str:
-                sys.exit(
-                    "❌ Steam ID ontbreekt. Gebruik --id 1/2/3 of zet STEAM_ID_1 in .env."
-                )
-            api_url = build_api_url(api_key, steam_id_str)
-            steam_id_for_msg = steam_id_str
 
-        data = fetch_owned_games_json(api_url)
-        # Apply central free-to-play info to downloaded data
-        for game in data.get("response", {}).get("games", []):
-            appid = game.get("appid")
-            if appid in central_free_info:
-                game["is_free"] = central_free_info[appid]
-        save_json(data, json_path)
-        if steam_id_for_msg:
-            print(
-                f"⬇️  JSON opgehaald voor SteamID {steam_id_for_msg} en opgeslagen naar: {json_path}"
-            )
-        else:
-            print(f"⬇️  JSON opgehaald en opgeslagen naar: {json_path}")
+def _download_and_save(args: argparse.Namespace,
+                       env_vars: Dict[str, str],
+                       steam_id_str: Optional[str],
+                       central_free_info: Dict[int, Optional[bool]],
+                       json_path: Path) -> None:
+    """Download games from Steam API and save to JSON."""
+    if args.api_url:
+        api_url = args.api_url
+        steam_id_for_msg = None
     else:
-        print("⚠️ Offline modus: oversla downloaden en lees lokaal JSON.")
+        api_key = env_vars.get("STEAM_API_KEY")
+        if not api_key:
+            sys.exit(
+                "❌ STEAM_API_KEY ontbreekt. Zet deze in .env of als omgevingsvariabele."
+            )
+        if not steam_id_str:
+            sys.exit(
+                "❌ Steam ID ontbreekt. Gebruik --id 1/2/3 of zet STEAM_ID_1 in .env."
+            )
+        api_url = build_api_url(api_key, steam_id_str)
+        steam_id_for_msg = steam_id_str
 
-    # 2) Inladen en voorbereiden
-    rows = load_games_from_json(json_path)
+    data = fetch_owned_games_json(api_url)
+    # Apply central free-to-play info to downloaded data
+    for game in data.get("response", {}).get("games", []):
+        appid = game.get("appid")
+        if appid in central_free_info:
+            game["is_free"] = central_free_info[appid]
+    save_json(data, json_path)
+    if steam_id_for_msg:
+        print(
+            f"⬇️  JSON opgehaald voor SteamID {steam_id_for_msg} en opgeslagen naar: {json_path}"
+        )
+    else:
+        print(f"⬇️  JSON opgehaald en opgeslagen naar: {json_path}")
 
-    # Apply central free-info to rows
-    for r in rows:
-        if r.get("is_free") is None and r["appid"] in central_free_info:
-            r["is_free"] = central_free_info[r["appid"]]
 
-    # Enrich met free-to-play info
+def _handle_enrichment(args: argparse.Namespace,
+                       rows: List[Dict[str, Any]],
+                       central_free_info: Dict[int, Optional[bool]]) -> Dict[
+                           int, Optional[bool]]:
+    """Handle free-to-play enrichment based on args."""
     if args.enrich_free_info:
-        # Expliciete enrichment (altijd wachten)
         central_free_info = enrich_with_free_info(rows, central_free_info)
         save_central_free_info(central_free_info)
-    else:
-        # Check of we free-to-play info nodig hebben
-        missing = [r for r in rows if r.get("is_free") is None]
+        return central_free_info
 
-        if (args.paid_only or args.free_only) and missing:
-            # Filtering nodig maar data ontbreekt: doe expliciete enrichment (wacht)
-            print("🔄 Free-to-play info verzamelen voor filtering...")
-            central_free_info = enrich_with_free_info(rows, central_free_info)
-            save_central_free_info(central_free_info)
-        elif missing and not args.paid_only and not args.free_only:
-            # Geen filtering: start achtergrond enrichment zonder te wachten
-            print("🔄 Free-to-play info wordt op de achtergrond ingezameld...")
-            bg_thread = threading.Thread(
-                target=enrich_in_background,
-                args=(rows, central_free_info),
-                daemon=False)  # Non-daemon so it finishes
-            bg_thread.start()
-            # Give thread a moment to start, then continue
-            time.sleep(0.1)
+    missing = [r for r in rows if r.get("is_free") is None]
+    if (args.paid_only or args.free_only) and missing:
+        # Filtering nodig maar data ontbreekt: doe expliciete enrichment (wacht)
+        print("🔄 Free-to-play info verzamelen voor filtering...")
+        central_free_info = enrich_with_free_info(rows, central_free_info)
+        save_central_free_info(central_free_info)
+    elif missing and not args.paid_only and not args.free_only:
+        # Geen filtering: start achtergrond enrichment zonder te wachten
+        print("🔄 Free-to-play info wordt op de achtergrond ingezameld...")
+        bg_thread = threading.Thread(
+            target=enrich_in_background,
+            args=(rows, central_free_info),
+            daemon=False)  # Non-daemon so it finishes
+        bg_thread.start()
+        # Give thread a moment to start, then continue
+        time.sleep(0.1)
+    return central_free_info
 
-    # filters
-    rows = filter_rows(rows, args.min_minutes, args.max_minutes,
-                       args.only_zero, args.exclude_zero, args.paid_only,
-                       args.free_only)
 
-    # sorteren
-    ascending = True if args.sort_asc else False
-    rows_sorted = sort_rows(rows, ascending=ascending)
-
-    # 3) Snelle ID-lijsten
-    if args.bottom_ids is not None:
-        # Altijd oplopend voor bottom
-        smallest = sort_rows(rows, ascending=True)
-        print(ids_list(smallest, args.bottom_ids, args.ids_sep))
-        return
-    if args.top_ids is not None:
-        print(ids_list(rows_sorted, args.top_ids, args.ids_sep))
-        return
-
-    # 4) Tabel tonen in console
-    print_table(rows_sorted, limit=args.top, show_hours=args.show_hours)
-
-    # 5) Exports
+def _handle_exports(args: argparse.Namespace,
+                    rows_sorted: List[Dict[str, Any]]) -> None:
+    """Handle CSV, Markdown, and Excel exports."""
     if args.csv:
         export_csv(rows_sorted[:args.top] if args.top else rows_sorted,
                    Path(args.csv))
@@ -620,6 +605,53 @@ def main():
         maybe_export_xlsx(rows_sorted[:args.top] if args.top else rows_sorted,
                           Path(args.xlsx),
                           show_hours=args.show_hours)
+
+
+def main():
+    args = parse_args()
+    env_vars = load_env(Path(args.env) if args.env else None)
+
+    steam_id_str, json_path = _determine_paths(args, env_vars)
+    central_free_info = load_central_free_info()
+
+    # 1) Download nieuwste JSON tenzij --offline
+    if not args.offline:
+        _download_and_save(args, env_vars, steam_id_str, central_free_info,
+                           json_path)
+    else:
+        print("⚠️ Offline modus: oversla downloaden en lees lokaal JSON.")
+
+    # 2) Inladen en voorbereiden
+    rows = load_games_from_json(json_path)
+
+    # Apply central free-info to rows
+    for r in rows:
+        if r.get("is_free") is None and r["appid"] in central_free_info:
+            r["is_free"] = central_free_info[r["appid"]]
+
+    # Enrich met free-to-play info
+    central_free_info = _handle_enrichment(args, rows, central_free_info)
+
+    # filters + sorteren
+    rows = filter_rows(rows, args.min_minutes, args.max_minutes,
+                       args.only_zero, args.exclude_zero, args.paid_only,
+                       args.free_only)
+    rows_sorted = sort_rows(rows, ascending=args.sort_asc)
+
+    # 3) Snelle ID-lijsten
+    if args.bottom_ids is not None:
+        print(ids_list(sort_rows(rows, ascending=True), args.bottom_ids,
+                       args.ids_sep))
+        return
+    if args.top_ids is not None:
+        print(ids_list(rows_sorted, args.top_ids, args.ids_sep))
+        return
+
+    # 4) Tabel tonen in console
+    print_table(rows_sorted, limit=args.top, show_hours=args.show_hours)
+
+    # 5) Exports
+    _handle_exports(args, rows_sorted)
 
 
 if __name__ == "__main__":

@@ -35,6 +35,7 @@ DATA_DIR = Path(__file__).parent
 PROFILES_CACHE = Path(__file__).parent / "profiles_cache.json"
 ACCOUNT_NOT_CONFIGURED = "Account niet geconfigureerd"
 FETCH_REQUIRED = "Haal eerst data op"
+API_KEY_NOT_SET = "API key niet ingesteld"
 
 # Track background enrichment status per steam_id
 _enrichment_status: Dict[str, Dict[str, Any]] = {}
@@ -311,7 +312,7 @@ def get_account_profile(account_id: int):
     api_key = config.get("STEAM_API_KEY")
 
     if not api_key:
-        return jsonify({"error": "API key niet ingesteld"}), 400
+        return jsonify({"error": API_KEY_NOT_SET}), 400
 
     profile_info = fetch_steam_profile(api_key, steam_id)
 
@@ -329,7 +330,7 @@ def get_all_profiles():
     api_key = config.get("STEAM_API_KEY")
 
     if not api_key:
-        return jsonify({"error": "API key niet ingesteld"}), 400
+        return jsonify({"error": API_KEY_NOT_SET}), 400
 
     accounts_json = config.get("STEAM_ACCOUNTS", "[]")
     try:
@@ -391,26 +392,23 @@ def get_account_games(account_id: int):
         # Query parameters voor filtering
         min_min = request.args.get('min_minutes', type=int)
         max_min = request.args.get('max_minutes', type=int)
-        only_zero = request.args.get('only_zero', type=bool)
-        exclude_zero = request.args.get('exclude_zero', type=bool)
-        paid_only = request.args.get('paid_only', type=bool)
-        free_only = request.args.get('free_only', type=bool)
-        sort_asc = request.args.get('sort_asc', type=bool)
-        limit = request.args.get('limit', type=int, default=200)
-        offset = request.args.get('offset', type=int, default=0)
-        offset = max(offset or 0, 0)
-        limit = max(limit or 0, 0) if limit is not None else 0
+        only_zero = request.args.get('only_zero', default=False, type=bool)
+        exclude_zero = request.args.get('exclude_zero', default=False, type=bool)
+        paid_only = request.args.get('paid_only', default=False, type=bool)
+        free_only = request.args.get('free_only', default=False, type=bool)
+        sort_asc = request.args.get('sort_asc', default=False, type=bool)
+        limit = max(request.args.get('limit', type=int, default=200), 0)
+        offset = max(request.args.get('offset', type=int, default=0), 0)
 
         # Filter
-        filtered = filter_rows(rows, min_min, max_min, only_zero or False,
-                               exclude_zero or False, paid_only or False,
-                               free_only or False)
+        filtered = filter_rows(rows, min_min, max_min, only_zero,
+                               exclude_zero, paid_only, free_only)
 
         # Sort
-        sorted_rows = sort_rows(filtered, ascending=sort_asc or False)
+        sorted_rows = sort_rows(filtered, ascending=sort_asc)
 
         # Aggregate totals before limiting so the user sees full-playtime sums
-        total_minutes = sum(r.get("minutes", 0) or 0 for r in sorted_rows)
+        total_minutes = sum(r.get("minutes", 0) for r in sorted_rows)
         total_hours = round(total_minutes / 60, 2)
 
         # Limit + offset (pagination)
@@ -453,7 +451,7 @@ def fetch_account_data(account_id: int):
     api_key = config.get("STEAM_API_KEY")
 
     if not api_key:
-        return jsonify({"error": "API key niet ingesteld"}), 400
+        return jsonify({"error": API_KEY_NOT_SET}), 400
 
     try:
         # Fetch profile info and cache it
@@ -693,6 +691,34 @@ def get_untested_games(account_id: int):
         return jsonify({"error": str(e)}), 500
 
 
+def _update_game_in_files(accounts_list: List[str], appid: int,
+                          is_free) -> int:
+    """Update a game's free/paid status in all account files. Returns count of updated files."""
+    updated_count = 0
+    for steam_id in accounts_list:
+        json_file = DATA_DIR / f"owned_games_{steam_id}.json"
+
+        if not json_file.exists():
+            continue
+
+        try:
+            game_data = json.loads(json_file.read_text(encoding="utf-8"))
+            found = False
+
+            for game in game_data.get("response", {}).get("games", []):
+                if game.get("appid") == appid:
+                    game["is_free"] = is_free
+                    found = True
+                    break
+
+            if found:
+                save_json(game_data, json_file)
+                updated_count += 1
+        except Exception:
+            continue
+    return updated_count
+
+
 @app.route('/api/update-game-status/<int:account_id>', methods=['POST'])
 def update_game_status(account_id: int):
     """Update the free/paid status of a game in all account files + central cache."""
@@ -714,29 +740,7 @@ def update_game_status(account_id: int):
         appid = int(data.get("appid"))
         is_free = data.get("is_free")  # true, false, or null
 
-        # Update game in ALL account files that contain it
-        updated_count = 0
-        for steam_id in accounts_list:
-            json_file = DATA_DIR / f"owned_games_{steam_id}.json"
-
-            if not json_file.exists():
-                continue
-
-            try:
-                game_data = json.loads(json_file.read_text(encoding="utf-8"))
-                found = False
-
-                for game in game_data.get("response", {}).get("games", []):
-                    if game.get("appid") == appid:
-                        game["is_free"] = is_free
-                        found = True
-                        break
-
-                if found:
-                    save_json(game_data, json_file)
-                    updated_count += 1
-            except Exception:
-                continue
+        updated_count = _update_game_in_files(accounts_list, appid, is_free)
 
         # Update central cache
         central_free_info = load_central_free_info()
