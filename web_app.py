@@ -12,7 +12,7 @@ from typing import Dict, Any, List, Set
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError, URLError
 
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, Response
 import threading
 import time
 
@@ -816,11 +816,14 @@ def export_data(account_id: int, format: str):
                 ])
 
             output.seek(0)
-            return output.getvalue(), 200, {
-                'Content-Disposition':
-                f'attachment; filename=games_{steam_id}.csv',
-                'Content-Type': 'text/csv'
-            }
+            csv_response = Response(
+                output.getvalue(),
+                mimetype='text/csv',
+                headers={
+                    'Content-Disposition':
+                    f'attachment; filename=games_{steam_id}.csv'
+                })
+            return csv_response, 200
 
         elif format == "json":
             export_file = DATA_DIR / f"games_export_{steam_id}.json"
@@ -830,7 +833,7 @@ def export_data(account_id: int, format: str):
                                    encoding="utf-8")
             return send_file(export_file,
                              as_attachment=True,
-                             download_name=f"games_{steam_id}.json")
+                             download_name=f"games_{steam_id}.json"), 200
 
         else:
             return jsonify({"error": "Onbekend export format"}), 400

@@ -526,9 +526,10 @@ function renderFetchAllProgress(status, options = {}) {
     }
 
     const currentSteamId = status.current_steam_id || t('fetchAllNoCurrentAccount');
-    const errorsHtml = Array.isArray(status.errors) && status.errors.length > 0
-        ? `<ul class="progress-banner-errors">${status.errors.map((error) => `<li>#${escapeHtml(error.account_index)} (${escapeHtml(error.steam_id)}): ${escapeHtml(error.message)}</li>`).join('')}</ul>`
-        : '';
+    const errorItems = (Array.isArray(status.errors) ? status.errors : [])
+        .map((error) => '<li>#' + escapeHtml(error.account_index) + ' (' + escapeHtml(error.steam_id) + '): ' + escapeHtml(error.message) + '</li>')
+        .join('');
+    const errorsHtml = errorItems ? `<ul class="progress-banner-errors">${errorItems}</ul>` : '';
 
     container.style.display = 'block';
     container.innerHTML = `
@@ -713,7 +714,7 @@ function applyTranslations() {
     updateSelectionUI();
     updateUntestedSelectionUI();
     renderFetchAllProgress(fetchAllStatusSnapshot);
-    setFetchAllRunningState(Boolean(fetchAllStatusSnapshot && fetchAllStatusSnapshot.status === 'running'));
+    setFetchAllRunningState(fetchAllStatusSnapshot?.status === 'running');
 }
 
 function refreshLanguageSensitiveContent() {

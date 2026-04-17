@@ -442,7 +442,7 @@ table tbody tr:hover {
 
 .status-untested {
     background: #3d3d3d;
-    color: #d29922;
+    color: #ffc93c;
 }
 
 .btn-small {
@@ -464,7 +464,7 @@ table tbody tr:hover {
     font-size: 0.9em;
     border: 1px solid #3fb950;
     background: rgba(63, 185, 80, 0.1);
-    color: #3fb950;
+    color: #7ee787;
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.2s;
