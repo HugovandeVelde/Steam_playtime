@@ -35,7 +35,7 @@ Maak een `.env` bestand:
 # Steam Web API Key (https://steamcommunity.com/dev/apikey)
 STEAM_API_KEY=jouw_api_key
 
-# Standaard Steam account IDs (1-3 optioneel)
+# Standaard Steam account IDs (optioneel)
 STEAM_ID_1=76561198415456165
 STEAM_ID_2=76561198033137905
 STEAM_ID_3=
