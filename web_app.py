@@ -8,7 +8,7 @@ Biedt een GUI om accounts te beheren, data op te halen en in te stellen.
 import json
 import os
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Set
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError, URLError
 
@@ -40,6 +40,19 @@ API_KEY_NOT_SET = "API key niet ingesteld"
 # Track background enrichment status per steam_id
 _enrichment_status: Dict[str, Dict[str, Any]] = {}
 _enrichment_lock = threading.Lock()
+_fetch_all_lock = threading.Lock()
+_fetch_all_status: Dict[str, Any] = {
+    "status": "idle",
+    "phase": "fetching",
+    "current_account_index": 0,
+    "total_accounts": 0,
+    "current_steam_id": None,
+    "completed_accounts": 0,
+    "error_count": 0,
+    "errors": [],
+    "unknown_appids_total": 0,
+    "message": ""
+}
 
 
 def set_enrichment_status(steam_id: str, status: str,
@@ -55,6 +68,45 @@ def set_enrichment_status(steam_id: str, status: str,
 def get_enrichment_status(steam_id: str) -> Dict[str, Any]:
     with _enrichment_lock:
         return _enrichment_status.get(steam_id, {"status": "idle"})
+
+
+def set_fetch_all_status(**kwargs) -> None:
+    with _fetch_all_lock:
+        _fetch_all_status.update(kwargs)
+        _fetch_all_status["updated_at"] = time.time()
+
+
+def replace_fetch_all_status(status: Dict[str, Any]) -> None:
+    payload = {
+        "status": "idle",
+        "phase": "fetching",
+        "current_account_index": 0,
+        "total_accounts": 0,
+        "current_steam_id": None,
+        "completed_accounts": 0,
+        "error_count": 0,
+        "errors": [],
+        "unknown_appids_total": 0,
+        "message": "",
+        **status,
+        "updated_at": time.time()
+    }
+    with _fetch_all_lock:
+        _fetch_all_status.clear()
+        _fetch_all_status.update(payload)
+
+
+def get_fetch_all_status() -> Dict[str, Any]:
+    with _fetch_all_lock:
+        return {
+            **_fetch_all_status,
+            "errors": [dict(err) for err in _fetch_all_status.get("errors", [])]
+        }
+
+
+def is_fetch_all_running() -> bool:
+    with _fetch_all_lock:
+        return _fetch_all_status.get("status") == "running"
 
 
 def _update_per_account_file(json_path: Path,
@@ -162,6 +214,59 @@ def fetch_steam_profile(api_key: str, steam_id: str) -> Dict[str, Any]:
             return {"error": "Player not found"}
     except Exception as e:
         return {"error": str(e)}
+
+
+def _fetch_and_store_account_data(
+        steam_id: str, api_key: str,
+        central_free_info: Dict[int, Any]) -> Dict[str, Any]:
+    """Fetch, cache, and save owned games for one account."""
+    profile_info = fetch_steam_profile(api_key, steam_id)
+    if "error" not in profile_info:
+        update_profile_cache(steam_id, profile_info)
+
+    api_url = build_api_url(api_key, steam_id)
+    data = fetch_owned_games_json(api_url)
+
+    unknown_appids: Set[int] = set()
+    for game in data.get("response", {}).get("games", []):
+        appid = game.get("appid")
+        if appid is None:
+            continue
+        appid = int(appid)
+        if appid in central_free_info:
+            game["is_free"] = central_free_info[appid]
+        else:
+            unknown_appids.add(appid)
+
+    json_path = DATA_DIR / f"owned_games_{steam_id}.json"
+    save_json(data, json_path)
+
+    return {
+        "steam_id": steam_id,
+        "json_path": json_path,
+        "game_count": len(data.get("response", {}).get("games", [])),
+        "unknown_count": len(unknown_appids),
+        "unknown_appids": unknown_appids
+    }
+
+
+def _run_shared_enrichment(accounts_list: List[str],
+                           central_free_info: Dict[int, Any],
+                           unknown_appids: Set[int]) -> None:
+    """Enrich free/paid info once for all newly discovered app IDs."""
+    if not unknown_appids:
+        return
+
+    new_info = dict(central_free_info)
+    for appid in sorted(unknown_appids):
+        new_info[appid] = fetch_game_details(int(appid))
+
+    save_central_free_info(new_info)
+    sort_free_info_cache()
+
+    for steam_id in accounts_list:
+        json_file = DATA_DIR / f"owned_games_{steam_id}.json"
+        _update_per_account_file(json_file, new_info)
 
 
 @app.route('/')
@@ -434,6 +539,9 @@ def get_account_games(account_id: int):
 @app.route('/api/fetch/<int:account_id>', methods=['POST'])
 def fetch_account_data(account_id: int):
     """Haal data op voor een account via de Steam API."""
+    if is_fetch_all_running():
+        return jsonify({"error": "Batch update is al bezig"}), 409
+
     config = get_env_config()
 
     # Parse accounts list
@@ -454,30 +562,12 @@ def fetch_account_data(account_id: int):
         return jsonify({"error": API_KEY_NOT_SET}), 400
 
     try:
-        # Fetch profile info and cache it
-        profile_info = fetch_steam_profile(api_key, steam_id)
-        if "error" not in profile_info:
-            update_profile_cache(steam_id, profile_info)
-
-        # Fetch data
-        api_url = build_api_url(api_key, steam_id)
-        data = fetch_owned_games_json(api_url)
-
-        # Apply existing free-info
         central_free_info = load_central_free_info()
-        unknown_count = 0
-        for game in data.get("response", {}).get("games", []):
-            appid = game.get("appid")
-            if appid in central_free_info:
-                game["is_free"] = central_free_info[appid]
-            else:
-                unknown_count += 1
-
-        # Save
-        json_path = DATA_DIR / f"owned_games_{steam_id}.json"
-        save_json(data, json_path)
-
-        game_count = len(data.get("response", {}).get("games", []))
+        result = _fetch_and_store_account_data(steam_id, api_key,
+                                               central_free_info)
+        json_path = result["json_path"]
+        game_count = result["game_count"]
+        unknown_count = result["unknown_count"]
 
         # Auto-start enrichment in background if there are unknown games
         if unknown_count > 0:
@@ -519,6 +609,112 @@ def fetch_account_data(account_id: int):
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/fetch-all', methods=['POST'])
+def fetch_all_accounts():
+    """Fetch all configured accounts sequentially and enrich once."""
+    if is_fetch_all_running():
+        return jsonify({"error": "Batch update is al bezig"}), 409
+
+    config = get_env_config()
+    accounts_json = config.get("STEAM_ACCOUNTS", "[]")
+    try:
+        accounts_list = json.loads(accounts_json)
+    except json.JSONDecodeError:
+        accounts_list = []
+
+    if not accounts_list:
+        return jsonify({"error": "Geen accounts ingesteld"}), 400
+
+    api_key = config.get("STEAM_API_KEY")
+    if not api_key:
+        return jsonify({"error": API_KEY_NOT_SET}), 400
+
+    replace_fetch_all_status({
+        "status": "running",
+        "phase": "fetching",
+        "current_account_index": 0,
+        "total_accounts": len(accounts_list),
+        "current_steam_id": None,
+        "completed_accounts": 0,
+        "error_count": 0,
+        "errors": [],
+        "unknown_appids_total": 0,
+        "message": "Batch update gestart"
+    })
+
+    def run_fetch_all():
+        shared_unknown_appids: Set[int] = set()
+        errors: List[Dict[str, Any]] = []
+        try:
+            central_free_info = load_central_free_info()
+
+            for index, steam_id in enumerate(accounts_list, 1):
+                set_fetch_all_status(
+                    status="running",
+                    phase="fetching",
+                    current_account_index=index,
+                    current_steam_id=steam_id,
+                    message=f"Account {index}/{len(accounts_list)} ophalen..."
+                )
+
+                try:
+                    result = _fetch_and_store_account_data(
+                        steam_id, api_key, central_free_info)
+                    shared_unknown_appids.update(result["unknown_appids"])
+                except Exception as e:
+                    errors.append({
+                        "account_index": index,
+                        "steam_id": steam_id,
+                        "message": str(e)
+                    })
+
+                set_fetch_all_status(completed_accounts=index,
+                                     error_count=len(errors),
+                                     errors=list(errors),
+                                     unknown_appids_total=len(
+                                         shared_unknown_appids))
+
+            set_fetch_all_status(phase="enriching",
+                                 current_steam_id=None,
+                                 current_account_index=len(accounts_list),
+                                 message="Gezamenlijke verrijking uitvoeren...")
+
+            _run_shared_enrichment(accounts_list, central_free_info,
+                                   shared_unknown_appids)
+
+            set_fetch_all_status(status="done",
+                                 phase="finalizing",
+                                 current_steam_id=None,
+                                 completed_accounts=len(accounts_list),
+                                 error_count=len(errors),
+                                 errors=list(errors),
+                                 unknown_appids_total=len(
+                                     shared_unknown_appids),
+                                 message="Batch update voltooid")
+        except Exception as e:
+            set_fetch_all_status(status="error",
+                                 phase="finalizing",
+                                 current_steam_id=None,
+                                 error_count=len(errors),
+                                 errors=list(errors),
+                                 message=str(e))
+
+    thread = threading.Thread(target=run_fetch_all, daemon=False)
+    thread.start()
+
+    return jsonify({
+        "status": "started",
+        "total_accounts": len(accounts_list),
+        "message": f"Batch update gestart voor {len(accounts_list)} accounts"
+    })
+
+
+@app.route('/api/fetch-all-status')
+def fetch_all_status():
+    """Get the current fetch-all batch status."""
+    return jsonify(get_fetch_all_status())
 
 
 @app.route('/api/enrich/<int:account_id>', methods=['POST'])

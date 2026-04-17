@@ -11,18 +11,35 @@
 <body>
     <div class="container">
         <header>
-            <h1>🎮 Steam Playtime Manager</h1>
+            <h1 data-i18n="siteTitle">&#x1F3AE; Steam Playtime Manager</h1>
             <nav>
-                <a href="/" class="nav-link active">Dashboard</a>
-                <a href="#untested" class="nav-link" onclick="showUntestedTab()">❓ Untested</a>
-                <a href="#settings" class="nav-link" onclick="showSettings()">⚙️ Instellingen</a>
+                <a href="/" id="nav-dashboard" class="nav-link active" data-i18n="navDashboard">Dashboard</a>
+                <a href="#untested" id="nav-untested" class="nav-link" onclick="showUntestedTab()" data-i18n="navUntested">&#x2753; Untested</a>
+                <div class="nav-controls">
+                    <a href="#settings" id="nav-settings" class="nav-link" onclick="showSettings()" data-i18n="navSettings">&#x2699;&#xFE0F; Instellingen</a>
+                    <label class="language-picker" for="language-select">
+                        <span class="language-label" data-i18n="languageLabel">Language</span>
+                        <select id="language-select" aria-label="Language selector" onchange="setLanguage(this.value)">
+                            <option value="nl">Nederlands</option>
+                            <option value="en">English</option>
+                        </select>
+                    </label>
+                </div>
             </nav>
         </header>
 
         <main>
-            <!-- Dashboard Section -->
             <section id="dashboard" class="section">
-                <h2>Je Accounts</h2>
+                <div class="dashboard-header">
+                    <h2 data-i18n="accountsHeading">Je Accounts</h2>
+                    <div class="dashboard-actions">
+                        <button id="fetch-all-btn" type="button" class="btn btn-primary" onclick="fetchAllAccounts()"
+                            data-i18n="buttonFetchAll">&#x21BB; Alles Ophalen</button>
+                    </div>
+                </div>
+
+                <div id="fetch-all-progress" class="progress-banner" style="display:none;"></div>
+
                 <div class="accounts-grid">
                     {% for account_id, account in accounts.items() %}
                     <div class="account-card">
@@ -31,8 +48,9 @@
                                 if not account.avatar_url %}style="display:none" {% endif %}>
                         </div>
                         <h3>{{ account.persona_name }}</h3>
-                        <p class="steam-id">ID: {{ account.steam_id }}</p>
-                        <p class="game-count">
+                        <p class="steam-id" data-role="steam-id" data-steam-id="{{ account.steam_id }}">ID: {{ account.steam_id }}</p>
+                        <p class="game-count" data-role="game-count" data-exists="{{ 'true' if account.exists else 'false' }}"
+                            data-game-count="{{ account.game_count }}" data-total-hours="{{ account.total_hours }}">
                             {% if account.exists %}
                             {{ account.game_count }} games | {{ account.total_hours }} uur gespeeld
                             {% else %}
@@ -40,15 +58,11 @@
                             {% endif %}
                         </p>
                         <div class="account-actions">
-                            <button onclick="fetchAccount('{{ account_id }}')" class="btn btn-primary">⬇️
-                                Ophalen</button>
+                            <button onclick="fetchAccount(event, '{{ account_id }}')" class="btn btn-primary" data-account-fetch="true" data-i18n="buttonFetch">&#x2B07;&#xFE0F; Ophalen</button>
                             {% if account.exists %}
-                            <button onclick="viewGames('{{ account_id }}')" class="btn btn-secondary">👁️
-                                Bekijken</button>
-                            <button onclick="enrichFreeInfo('{{ account_id }}')" class="btn btn-secondary">🔄
-                                Gratis Checken</button>
-                            <button onclick="exportData('{{ account_id }}', 'csv')" class="btn btn-secondary">📊
-                                CSV</button>
+                            <button onclick="viewGames('{{ account_id }}')" class="btn btn-secondary" data-i18n="buttonView">&#x1F441;&#xFE0F; Bekijken</button>
+                            <button onclick="enrichFreeInfo(event, '{{ account_id }}')" class="btn btn-secondary" data-i18n="buttonFreeCheck">&#x1F504; Gratis Checken</button>
+                            <button onclick="exportData('{{ account_id }}', 'csv')" class="btn btn-secondary" data-i18n="buttonCsv">&#x1F4CA; CSV</button>
                             {% endif %}
                         </div>
                     </div>
@@ -56,45 +70,49 @@
                 </div>
 
                 {% if not api_key_set %}
-                <div class="alert alert-warning">
-                    ⚠️ API key is niet ingesteld. Ga naar Instellingen om deze in te voeren.
+                <div id="api-key-warning" class="alert alert-warning" data-i18n="apiKeyWarning">
+                    &#x26A0;&#xFE0F; API key is niet ingesteld. Ga naar Instellingen om deze in te voeren.
                 </div>
                 {% endif %}
             </section>
 
-            <!-- Games View Section -->
             <section id="games-section" class="section" style="display:none;">
-                <h2>Games - Account <span id="current-account"></span></h2>
+                <h2><span data-i18n="gamesAccountTitle">Games - Account</span> <span id="current-account"></span></h2>
 
                 <div class="filters">
-                    <input type="number" id="min-minutes" placeholder="Min minuten" min="0">
-                    <input type="number" id="max-minutes" placeholder="Max minuten" min="0">
-                    <label><input type="checkbox" id="only-zero"> Alleen 0 minuten</label>
-                    <label><input type="checkbox" id="exclude-zero"> Zonder 0 minuten</label>
-                    <label><input type="checkbox" id="paid-only"> Alleen betaald</label>
-                    <label><input type="checkbox" id="free-only"> Alleen gratis</label>
-                    <label><input type="checkbox" id="sort-asc"> Oplopend sorteren</label>
-                    <button onclick="loadGames()" class="btn btn-primary">🔍 Filteren</button>
-                    <button onclick="backToDashboard()" class="btn btn-secondary">← Terug</button>
+                    <input type="number" id="min-minutes" data-i18n-placeholder="minMinutesPlaceholder" placeholder="Min minuten" min="0">
+                    <input type="number" id="max-minutes" data-i18n-placeholder="maxMinutesPlaceholder" placeholder="Max minuten" min="0">
+                    <label><input type="checkbox" id="only-zero"> <span data-i18n="filterOnlyZero">Alleen 0 minuten</span></label>
+                    <label><input type="checkbox" id="exclude-zero"> <span data-i18n="filterExcludeZero">Zonder 0 minuten</span></label>
+                    <label><input type="checkbox" id="paid-only"> <span data-i18n="filterPaidOnly">Alleen betaald</span></label>
+                    <label><input type="checkbox" id="free-only"> <span data-i18n="filterFreeOnly">Alleen gratis</span></label>
+                    <label><input type="checkbox" id="sort-asc"> <span data-i18n="filterSortAsc">Oplopend sorteren</span></label>
+                    <button onclick="loadGames()" class="btn btn-primary" data-i18n="buttonFilter">&#x1F50D; Filteren</button>
+                    <button onclick="backToDashboard()" class="btn btn-secondary" data-i18n="buttonBack">&#x2190; Terug</button>
                 </div>
 
                 <div id="games-container" class="games-table-container">
-                    <p>Laden...</p>
+                    <p data-i18n="loading">Laden...</p>
                 </div>
             </section>
 
-            <!-- Settings Section -->
             <section id="settings" class="section" style="display:none;">
-                <h2>⚙️ Instellingen</h2>
+                <h2 data-i18n="settingsHeading">&#x2699;&#xFE0F; Instellingen</h2>
                 <form id="settings-form">
                     <div class="form-group">
-                        <label for="api-key">Steam Web API Key:</label>
-                        <input type="password" id="api-key"
+                        <label for="api-key" data-i18n="apiKeyLabel">Steam Web API Key:</label>
+                        <input type="password" id="api-key" data-i18n-placeholder="apiKeyPlaceholder"
                             placeholder="Krijg je op https://steamcommunity.com/dev/apikey">
-                        <small>Je sleutels worden alleen lokaal opgeslagen en nooit gedeeld.</small>
+                        <small>
+                            <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener noreferrer"
+                                style="color: #1f6feb; text-decoration: none;" data-i18n="apiKeyLinkText">
+                                &#x1F517; Haal je API key op bij Steam
+                            </a>
+                        </small>
+                        <small data-i18n="apiKeyNote">Je sleutels worden alleen lokaal opgeslagen en nooit gedeeld.</small>
                     </div>
 
-                    <h3 style="margin-top: 30px; margin-bottom: 15px;">Je Accounts</h3>
+                    <h3 style="margin-top: 30px; margin-bottom: 15px;" data-i18n="settingsAccountsHeading">Je Accounts</h3>
                     <div id="accounts-list">
                         {% if accounts_list %}
                         {% for steam_id in accounts_list %}
@@ -107,60 +125,51 @@
                             </div>
                             <button type="button" class="btn btn-danger"
                                 onclick="removeAccountImmediate('{{ steam_id }}')"
-                                style="padding: 8px 12px; white-space: nowrap;">🗑️ Verwijderen</button>
+                                style="padding: 8px 12px; white-space: nowrap;" data-i18n="buttonDelete">&#x1F5D1;&#xFE0F; Verwijderen</button>
                         </div>
                         {% endfor %}
                         {% else %}
-                        <p style="color: #8b949e;">Geen accounts ingesteld. Voeg er een toe!</p>
+                        <p style="color: #8b949e;" data-i18n="noAccountsConfigured">Geen accounts ingesteld. Voeg er een toe!</p>
                         {% endif %}
                     </div>
 
-                    <button type="button" onclick="saveSettings()" class="btn btn-primary">💾 Opslaan</button>
-                    <button type="button" onclick="backToDashboard()" class="btn btn-secondary">← Terug</button>
+                    <button type="button" onclick="saveSettings()" class="btn btn-primary" data-i18n="buttonSave">&#x1F4BE; Opslaan</button>
+                    <button type="button" onclick="backToDashboard()" class="btn btn-secondary" data-i18n="buttonBack">&#x2190; Terug</button>
                 </form>
 
                 <hr style="margin: 30px 0; border: 1px solid var(--border);">
-                <h3 style="margin-bottom: 20px;">➕ Nieuw Account Toevoegen</h3>
+                <h3 style="margin-bottom: 20px;" data-i18n="newAccountHeading">&#x2795; Nieuw Account Toevoegen</h3>
                 <form id="add-account-form" style="max-width: 400px;">
                     <div class="form-group">
-                        <label for="new-steam-id">Steam ID64:</label>
+                        <label for="new-steam-id" data-i18n="newSteamIdLabel">Steam ID64:</label>
                         <input type="text" id="new-steam-id" placeholder="765611984XXXXXXXXX" pattern="[0-9]{17}"
                             required>
-                        <small>17-cijferig getal van je Steam64 ID</small>
+                        <small data-i18n="newSteamIdHint">17-cijferig getal van je Steam64 ID</small>
                     </div>
-                    <button type="button" onclick="addNewAccount()" class="btn btn-primary">➕ Account Toevoegen</button>
+                    <button type="button" onclick="addNewAccount()" class="btn btn-primary" data-i18n="buttonAddAccount">&#x2795; Account Toevoegen</button>
                 </form>
             </section>
 
-            <!-- Untested Games Section -->
             <section id="untested-section" class="section" style="display:none;">
-                <h2>❓ Untested Games</h2>
-                <p style="color: #8b949e; margin-bottom: 20px;">
+                <h2 data-i18n="untestedHeading">&#x2753; Untested Games</h2>
+                <p style="color: #8b949e; margin-bottom: 20px;" data-i18n="untestedDescription">
                     Games waarvan we de gratis/betaald status nog niet hebben kunnen bepalen.
-                    Je kunt ze hier handmatig aanpassen met één klik per game.
+                    Je kunt ze hier handmatig aanpassen met een klik per game.
                 </p>
 
                 <div style="margin-bottom: 20px; display: flex; gap: 10px;">
-                    <button onclick="loadAllUntestedGames()" class="btn btn-primary">🔄 Laad Untested Games</button>
-                    <button onclick="retryAllUntestedGames(event)" class="btn btn-secondary">🔁 Alle Opnieuw
-                        Scannen</button>
+                    <button onclick="loadAllUntestedGames()" class="btn btn-primary" data-i18n="buttonLoadUntested">&#x1F504; Laad Untested Games</button>
+                    <button onclick="retryAllUntestedGames(event)" class="btn btn-secondary" data-i18n="buttonRetryAll">&#x1F501; Alle Opnieuw Scannen</button>
                 </div>
 
                 <div id="untested-container" class="untested-table-container">
-                    <p style="color: #8b949e;">Klik bovenstaande knop om untested games te laden</p>
+                    <p style="color: #8b949e;" data-i18n="untestedPlaceholder">Klik bovenstaande knop om untested games te laden</p>
                 </div>
-            </section>
             </section>
         </main>
     </div>
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
-    <script>
-        // Load profile info for all accounts when page loads
-        document.addEventListener('DOMContentLoaded', function () {
-            loadProfilesAsync();
-        });
-    </script>
 </body>
 
 </html>
