@@ -22,6 +22,8 @@ from urllib.error import URLError, HTTPError
 
 BASE_API_URL = "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/"
 
+FREE_INFO_PATH = Path(__file__).parent / "game_free_info.json"
+
 
 def _parse_env_file(path: Path) -> Dict[str, str]:
     """Parse a .env file into a dict, silently ignoring errors."""
@@ -58,7 +60,7 @@ def build_api_url(api_key: str, steam_id: str) -> str:
             "&include_free_sub=true")
 
 
-def load_central_free_info(path: Path = Path("game_free_info.json")) -> Dict[
+def load_central_free_info(path: Path = FREE_INFO_PATH) -> Dict[
         int, Optional[bool]]:
     """Load centrally stored free-to-play info (appid -> is_free mapping)."""
     if not path.exists():
@@ -72,7 +74,7 @@ def load_central_free_info(path: Path = Path("game_free_info.json")) -> Dict[
 
 def save_central_free_info(
     free_info: Dict[int, Optional[bool]],
-    path: Path = Path("game_free_info.json")
+    path: Path = FREE_INFO_PATH
 ) -> None:
     """Save free-to-play info centrally for all accounts."""
     try:

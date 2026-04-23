@@ -1,13 +1,13 @@
-const PAGE_SIZE = 500;
+﻿const PAGE_SIZE = 500;
 const LANGUAGE_STORAGE_KEY = 'steamspul-language';
 const DEFAULT_LANGUAGE = 'nl';
 
 const TRANSLATIONS = {
     nl: {
         documentTitle: 'Steam Playtime - Dashboard',
-        siteTitle: '\uD83C\uDFAE Steam Playtime Manager',
+        siteTitle: 'Steam Playtime Manager',
         navDashboard: 'Dashboard',
-        navUntested: '\u2753 Untested',
+        navUntested: 'Untested',
         navSettings: '\u2699\uFE0F Instellingen',
         languageLabel: 'Taal',
         accountsHeading: 'Je Accounts',
@@ -15,14 +15,14 @@ const TRANSLATIONS = {
         accountSummary: '{count} games | {hours} uur gespeeld',
         accountNoData: 'Geen data',
         unknownUser: 'Onbekend',
-        buttonFetch: '\u2B07\uFE0F Ophalen',
-        buttonFetchBusy: '\u23F3 Bezig...',
-        buttonFetchAll: '\u21BB Alles Ophalen',
-        buttonFetchAllBusy: '\u21BB Alles Bezig...',
-        buttonView: '\uD83D\uDC41\uFE0F Bekijken',
-        buttonFreeCheck: '\uD83D\uDD04 Gratis Checken',
-        buttonFreeCheckBusy: '\uD83D\uDD04 Bezig...',
-        buttonCsv: '\uD83D\uDCCA CSV',
+        buttonFetch: 'Ophalen',
+        buttonFetchBusy: 'Bezig...',
+        buttonFetchAll: 'Alles Ophalen',
+        buttonFetchAllBusy: 'Alles Bezig...',
+        buttonView: 'Bekijken',
+        buttonFreeCheck: 'Gratis Checken',
+        buttonFreeCheckBusy: 'Bezig...',
+        buttonCsv: 'CSV',
         apiKeyWarning: '\u26A0\uFE0F API key is niet ingesteld. Ga naar Instellingen om deze in te voeren.',
         gamesAccountTitle: 'Games - Account',
         minMinutesPlaceholder: 'Min minuten',
@@ -32,39 +32,39 @@ const TRANSLATIONS = {
         filterPaidOnly: 'Alleen betaald',
         filterFreeOnly: 'Alleen gratis',
         filterSortAsc: 'Oplopend sorteren',
-        buttonFilter: '\uD83D\uDD0D Filteren',
+        buttonFilter: 'Filteren',
         buttonBack: '\u2190 Terug',
         loading: 'Laden...',
-        loadingGames: '\u23F3 Games laden...',
-        loadingUntested: '\u23F3 Untested games laden...',
+        loadingGames: 'Games laden...',
+        loadingUntested: 'Untested games laden...',
         settingsHeading: '\u2699\uFE0F Instellingen',
         apiKeyLabel: 'Steam Web API Key:',
         apiKeyPlaceholder: 'Krijg je op https://steamcommunity.com/dev/apikey',
-        apiKeyLinkText: '\uD83D\uDD17 Haal je API key op bij Steam',
+        apiKeyLinkText: 'Haal je API key op bij Steam',
         apiKeyNote: 'Je sleutels worden alleen lokaal opgeslagen en nooit gedeeld.',
         settingsAccountsHeading: 'Je Accounts',
         accountLabel: 'Account {number}',
         noAccountsConfigured: 'Geen accounts ingesteld. Voeg er een toe!',
-        buttonDelete: '\uD83D\uDDD1\uFE0F Verwijderen',
-        buttonSave: '\uD83D\uDCBE Opslaan',
-        newAccountHeading: '\u2795 Nieuw Account Toevoegen',
+        buttonDelete: 'Verwijderen',
+        buttonSave: 'Opslaan',
+        newAccountHeading: 'Nieuw Account Toevoegen',
         newSteamIdLabel: 'Steam ID64:',
         newSteamIdHint: '17-cijferig getal van je Steam64 ID',
-        buttonAddAccount: '\u2795 Account Toevoegen',
-        untestedHeading: '\u2753 Untested Games',
+        buttonAddAccount: 'Account Toevoegen',
+        untestedHeading: 'Untested Games',
         untestedDescription: 'Games waarvan we de gratis/betaald status nog niet hebben kunnen bepalen. Je kunt ze hier handmatig aanpassen met een klik per game.',
-        buttonLoadUntested: '\uD83D\uDD04 Laad Untested Games',
-        buttonRetryAll: '\uD83D\uDD01 Alle Opnieuw Scannen',
-        buttonRetryAllBusy: '\u23F3 Scannen...',
+        buttonLoadUntested: 'Laad Untested Games',
+        buttonRetryAll: 'Alle Opnieuw Scannen',
+        buttonRetryAllBusy: 'Scannen...',
         untestedPlaceholder: 'Klik bovenstaande knop om untested games te laden',
-        statusFree: '\u2705 Gratis',
-        statusPaid: '\uD83D\uDCB0 Betaald',
-        statusUntested: '\u2753 Untested',
-        notificationEnrichmentDone: '\u2705 Verrijking voltooid! Gegevens bijgewerkt.',
-        notificationCopyAppId: '\uD83D\uDCCB AppID {appid} gekopieerd naar klembord',
+        statusFree: 'Gratis',
+        statusPaid: 'Betaald',
+        statusUntested: 'Untested',
+        notificationEnrichmentDone: 'Verrijking voltooid! Gegevens bijgewerkt.',
+        notificationCopyAppId: 'AppID {appid} gekopieerd naar klembord',
         notificationNoGamesSelected: 'Geen games geselecteerd',
-        notificationCopySelected: '\uD83D\uDCCB {count} AppIDs gekopieerd: {ids}',
-        copySelectedButton: '\uD83D\uDCCB Kopieer {count} geselecteerde',
+        notificationCopySelected: '{count} AppIDs gekopieerd: {ids}',
+        copySelectedButton: 'Kopieer {count} geselecteerde',
         gamesSummary: 'Totaal: {total} games (alle speeltijd opgeteld: {hours} uur)',
         gamesShown: 'Getoond: {start}-{end} (pagina-grootte {limit})',
         tableAppId: 'AppID',
@@ -78,22 +78,22 @@ const TRANSLATIONS = {
         paginationPage: 'Pagina {current} / {total}',
         untestedSummary: 'Totaal: {count} untested games (gesorteerd op App ID)',
         minutesHours: '{minutes}m ({hours}h)',
-        buttonClassifyFree: '\u2705 Gratis',
-        buttonClassifyPaid: '\uD83D\uDCB0 Betaald',
-        noUntestedGames: '\u2705 Geen untested games! Alle games zijn geclassificeerd.',
-        noUntestedGamesRemaining: '\u2705 Geen untested games meer! Alle games zijn geclassificeerd.',
-        notificationSettingsSaved: '\u2705 Instellingen opgeslagen',
-        notificationFetchAllStarted: '\u2705 Batch update gestart voor {total} accounts',
-        notificationFetchAllDone: '\u2705 Batch voltooid. {completed} accounts verwerkt, {errors} fouten.',
+        buttonClassifyFree: 'Gratis',
+        buttonClassifyPaid: 'Betaald',
+        noUntestedGames: 'Geen untested games! Alle games zijn geclassificeerd.',
+        noUntestedGamesRemaining: 'Geen untested games meer! Alle games zijn geclassificeerd.',
+        notificationSettingsSaved: 'Instellingen opgeslagen',
+        notificationFetchAllStarted: 'Batch update gestart voor {total} accounts',
+        notificationFetchAllDone: 'Batch voltooid. {completed} accounts verwerkt, {errors} fouten.',
         errorLoadSettings: 'Kon instellingen niet laden: {error}',
         errorNeedOneAccount: 'Voeg minstens 1 account in',
         notificationAccountRemovedPending: 'Account verwijderd. Klik Opslaan om te bevestigen.',
         confirmDeleteAccount: 'Account {steamId} verwijderen?',
-        notificationAccountRemoved: '\u2705 Account verwijderd',
+        notificationAccountRemoved: 'Account verwijderd',
         errorDeleteAccount: 'Fout bij verwijderen van account',
         errorEnterSteamId: 'Voer een Steam ID in',
         errorSteamIdLength: 'Steam ID moet uit 17 cijfers bestaan',
-        notificationAccountAdded: '\u2705 Account toegevoegd!',
+        notificationAccountAdded: 'Account toegevoegd!',
         errorAddAccount: 'Fout bij toevoegen: {error}',
         errorSaveSettings: 'Fout bij opslaan: {error}',
         errorFetchAccount: 'Fout bij ophalen: {error}',
@@ -127,22 +127,22 @@ const TRANSLATIONS = {
         apiMessageInvalidSteamId: 'Ongeldig Steam ID. Moet 17 cijfers zijn.',
         apiMessageDataNotFound: 'Data niet gevonden',
         apiMessageUnknownExportFormat: 'Onbekend export format',
-        apiMessageFreeInfoRunning: '\uD83D\uDD04 Free-to-play info wordt ingezameld. Dit kan enkele minuten duren...',
-        apiMessageNoUntestedToRetry: '\u2705 Geen untested games om opnieuw te proberen',
+        apiMessageFreeInfoRunning: 'Free-to-play info wordt ingezameld. Dit kan enkele minuten duren...',
+        apiMessageNoUntestedToRetry: 'Geen untested games om opnieuw te proberen',
         apiMessageRetryDone: 'Retry voltooid',
         apiMessageEnrichmentDone: 'Enrichment voltooid',
-        apiMessageGamesFetchedKnown: '\u2705 {count} games opgehaald. Alle games zijn bekend!',
-        apiMessageGamesFetchedUnknown: '\u2705 {count} games opgehaald. \uD83D\uDD04 {unknown} onbekende games worden op de achtergrond ingezameld...',
-        apiMessageGameStatusUpdated: '\u2705 Game status geupdate ({count} account(s))',
-        apiMessageAccountAddedTotal: '\u2705 Account toegevoegd (totaal: {count})',
-        apiMessageRetryUntested: '\uD83D\uDD04 {count} untested games worden opnieuw gecontroleerd...',
-        apiMessageRetryAllUntested: '\uD83D\uDD04 {count} untested games worden opnieuw gescanned. Dit kan enkele minuten duren...'
+        apiMessageGamesFetchedKnown: '{count} games opgehaald. Alle games zijn bekend!',
+        apiMessageGamesFetchedUnknown: '{count} games opgehaald. {unknown} onbekende games worden op de achtergrond ingezameld...',
+        apiMessageGameStatusUpdated: 'Game status geupdate ({count} account(s))',
+        apiMessageAccountAddedTotal: 'Account toegevoegd (totaal: {count})',
+        apiMessageRetryUntested: '{count} untested games worden opnieuw gecontroleerd...',
+        apiMessageRetryAllUntested: '{count} untested games worden opnieuw gescanned. Dit kan enkele minuten duren...'
     },
     en: {
         documentTitle: 'Steam Playtime - Dashboard',
-        siteTitle: '\uD83C\uDFAE Steam Playtime Manager',
+        siteTitle: 'Steam Playtime Manager',
         navDashboard: 'Dashboard',
-        navUntested: '\u2753 Untested',
+        navUntested: 'Untested',
         navSettings: '\u2699\uFE0F Settings',
         languageLabel: 'Language',
         accountsHeading: 'Your Accounts',
@@ -150,14 +150,14 @@ const TRANSLATIONS = {
         accountSummary: '{count} games | {hours} hours played',
         accountNoData: 'No data',
         unknownUser: 'Unknown',
-        buttonFetch: '\u2B07\uFE0F Fetch',
-        buttonFetchBusy: '\u23F3 Working...',
-        buttonFetchAll: '\u21BB Fetch All',
-        buttonFetchAllBusy: '\u21BB Fetching All...',
-        buttonView: '\uD83D\uDC41\uFE0F View',
-        buttonFreeCheck: '\uD83D\uDD04 Check Free',
-        buttonFreeCheckBusy: '\uD83D\uDD04 Working...',
-        buttonCsv: '\uD83D\uDCCA CSV',
+        buttonFetch: 'Fetch',
+        buttonFetchBusy: 'Working...',
+        buttonFetchAll: 'Fetch All',
+        buttonFetchAllBusy: 'Fetching All...',
+        buttonView: 'View',
+        buttonFreeCheck: 'Check Free',
+        buttonFreeCheckBusy: 'Working...',
+        buttonCsv: 'CSV',
         apiKeyWarning: '\u26A0\uFE0F API key is not set. Go to Settings to enter it.',
         gamesAccountTitle: 'Games - Account',
         minMinutesPlaceholder: 'Min minutes',
@@ -167,39 +167,39 @@ const TRANSLATIONS = {
         filterPaidOnly: 'Paid only',
         filterFreeOnly: 'Free only',
         filterSortAsc: 'Sort ascending',
-        buttonFilter: '\uD83D\uDD0D Filter',
+        buttonFilter: 'Filter',
         buttonBack: '\u2190 Back',
         loading: 'Loading...',
-        loadingGames: '\u23F3 Loading games...',
-        loadingUntested: '\u23F3 Loading untested games...',
+        loadingGames: 'Loading games...',
+        loadingUntested: 'Loading untested games...',
         settingsHeading: '\u2699\uFE0F Settings',
         apiKeyLabel: 'Steam Web API Key:',
         apiKeyPlaceholder: 'Get it from https://steamcommunity.com/dev/apikey',
-        apiKeyLinkText: '\uD83D\uDD17 Get your API key from Steam',
+        apiKeyLinkText: 'Get your API key from Steam',
         apiKeyNote: 'Your keys are stored locally only and are never shared.',
         settingsAccountsHeading: 'Your Accounts',
         accountLabel: 'Account {number}',
         noAccountsConfigured: 'No accounts configured yet. Add one!',
-        buttonDelete: '\uD83D\uDDD1\uFE0F Delete',
-        buttonSave: '\uD83D\uDCBE Save',
-        newAccountHeading: '\u2795 Add New Account',
+        buttonDelete: 'Delete',
+        buttonSave: 'Save',
+        newAccountHeading: 'Add New Account',
         newSteamIdLabel: 'Steam ID64:',
         newSteamIdHint: '17-digit number from your Steam64 ID',
-        buttonAddAccount: '\u2795 Add Account',
-        untestedHeading: '\u2753 Untested Games',
+        buttonAddAccount: 'Add Account',
+        untestedHeading: 'Untested Games',
         untestedDescription: 'Games for which we could not determine the free/paid status yet. You can classify them here with one click per game.',
-        buttonLoadUntested: '\uD83D\uDD04 Load Untested Games',
-        buttonRetryAll: '\uD83D\uDD01 Retry All',
-        buttonRetryAllBusy: '\u23F3 Scanning...',
+        buttonLoadUntested: 'Load Untested Games',
+        buttonRetryAll: 'Retry All',
+        buttonRetryAllBusy: 'Scanning...',
         untestedPlaceholder: 'Click the button above to load untested games',
-        statusFree: '\u2705 Free',
-        statusPaid: '\uD83D\uDCB0 Paid',
-        statusUntested: '\u2753 Untested',
-        notificationEnrichmentDone: '\u2705 Enrichment complete! Data refreshed.',
-        notificationCopyAppId: '\uD83D\uDCCB AppID {appid} copied to clipboard',
+        statusFree: 'Free',
+        statusPaid: 'Paid',
+        statusUntested: 'Untested',
+        notificationEnrichmentDone: 'Enrichment complete! Data refreshed.',
+        notificationCopyAppId: 'AppID {appid} copied to clipboard',
         notificationNoGamesSelected: 'No games selected',
-        notificationCopySelected: '\uD83D\uDCCB {count} AppIDs copied: {ids}',
-        copySelectedButton: '\uD83D\uDCCB Copy {count} selected',
+        notificationCopySelected: '{count} AppIDs copied: {ids}',
+        copySelectedButton: 'Copy {count} selected',
         gamesSummary: 'Total: {total} games (combined playtime: {hours} hours)',
         gamesShown: 'Showing: {start}-{end} (page size {limit})',
         tableAppId: 'AppID',
@@ -213,22 +213,22 @@ const TRANSLATIONS = {
         paginationPage: 'Page {current} / {total}',
         untestedSummary: 'Total: {count} untested games (sorted by App ID)',
         minutesHours: '{minutes}m ({hours}h)',
-        buttonClassifyFree: '\u2705 Free',
-        buttonClassifyPaid: '\uD83D\uDCB0 Paid',
-        noUntestedGames: '\u2705 No untested games! Everything is classified.',
-        noUntestedGamesRemaining: '\u2705 No untested games left! Everything is classified.',
-        notificationSettingsSaved: '\u2705 Settings saved',
-        notificationFetchAllStarted: '\u2705 Batch update started for {total} accounts',
-        notificationFetchAllDone: '\u2705 Batch complete. {completed} accounts processed, {errors} errors.',
+        buttonClassifyFree: 'Free',
+        buttonClassifyPaid: 'Paid',
+        noUntestedGames: 'No untested games! Everything is classified.',
+        noUntestedGamesRemaining: 'No untested games left! Everything is classified.',
+        notificationSettingsSaved: 'Settings saved',
+        notificationFetchAllStarted: 'Batch update started for {total} accounts',
+        notificationFetchAllDone: 'Batch complete. {completed} accounts processed, {errors} errors.',
         errorLoadSettings: 'Could not load settings: {error}',
         errorNeedOneAccount: 'Add at least 1 account',
         notificationAccountRemovedPending: 'Account removed. Click Save to confirm.',
         confirmDeleteAccount: 'Delete account {steamId}?',
-        notificationAccountRemoved: '\u2705 Account removed',
+        notificationAccountRemoved: 'Account removed',
         errorDeleteAccount: 'Error removing account',
         errorEnterSteamId: 'Enter a Steam ID',
         errorSteamIdLength: 'Steam ID must contain 17 digits',
-        notificationAccountAdded: '\u2705 Account added!',
+        notificationAccountAdded: 'Account added!',
         errorAddAccount: 'Error adding account: {error}',
         errorSaveSettings: 'Error saving: {error}',
         errorFetchAccount: 'Error fetching: {error}',
@@ -262,16 +262,16 @@ const TRANSLATIONS = {
         apiMessageInvalidSteamId: 'Invalid Steam ID. Must be 17 digits.',
         apiMessageDataNotFound: 'Data not found',
         apiMessageUnknownExportFormat: 'Unknown export format',
-        apiMessageFreeInfoRunning: '\uD83D\uDD04 Collecting free-to-play info. This may take a few minutes...',
-        apiMessageNoUntestedToRetry: '\u2705 No untested games to retry',
+        apiMessageFreeInfoRunning: 'Collecting free-to-play info. This may take a few minutes...',
+        apiMessageNoUntestedToRetry: 'No untested games to retry',
         apiMessageRetryDone: 'Retry completed',
         apiMessageEnrichmentDone: 'Enrichment completed',
-        apiMessageGamesFetchedKnown: '\u2705 Fetched {count} games. All games are known!',
-        apiMessageGamesFetchedUnknown: '\u2705 Fetched {count} games. \uD83D\uDD04 {unknown} unknown games are being collected in the background...',
-        apiMessageGameStatusUpdated: '\u2705 Game status updated ({count} account(s))',
-        apiMessageAccountAddedTotal: '\u2705 Account added (total: {count})',
-        apiMessageRetryUntested: '\uD83D\uDD04 Retrying {count} untested games...',
-        apiMessageRetryAllUntested: '\uD83D\uDD04 Retrying {count} untested games. This may take a few minutes...'
+        apiMessageGamesFetchedKnown: 'Fetched {count} games. All games are known!',
+        apiMessageGamesFetchedUnknown: 'Fetched {count} games. {unknown} unknown games are being collected in the background...',
+        apiMessageGameStatusUpdated: 'Game status updated ({count} account(s))',
+        apiMessageAccountAddedTotal: 'Account added (total: {count})',
+        apiMessageRetryUntested: 'Retrying {count} untested games...',
+        apiMessageRetryAllUntested: 'Retrying {count} untested games. This may take a few minutes...'
     }
 };
 
@@ -759,16 +759,7 @@ function setLanguage(language, options = {}) {
 
 function showNotification(message, type = 'success') {
     const notification = document.createElement('div');
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: ${type === 'success' ? '#3fb950' : '#f85149'};
-        color: white;
-        padding: 12px 20px;
-        border-radius: 6px;
-        z-index: 1000;
-    `;
+    notification.className = type === 'success' ? 'notification' : 'notification notification--error';
     notification.textContent = message;
     document.body.appendChild(notification);
 
@@ -923,17 +914,17 @@ async function loadSettings() {
         if (currentSettingsAccounts.length > 0) {
             currentSettingsAccounts.forEach((steamId, index) => {
                 accountsList.innerHTML += `
-                    <div class="account-settings-item" style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--secondary); border-radius: 6px; margin-bottom: 10px;">
-                        <div style="flex: 1;">
-                            <strong>${t('accountLabel', { number: index + 1 })}</strong>
-                            <div style="font-family: monospace; color: #8b949e; font-size: 0.9em; margin-top: 4px;">${steamId}</div>
+                    <div class="account-settings-item">
+                        <div class="account-settings-item__info">
+                            <strong class="account-settings-item__label">${t('accountLabel', { number: index + 1 })}</strong>
+                            <div class="account-settings-item__id">${steamId}</div>
                         </div>
-                        <button type="button" class="btn btn-danger" onclick="removeAccountImmediate('${steamId}')" style="padding: 8px 12px; white-space: nowrap;">${t('buttonDelete')}</button>
+                        <button type="button" class="btn btn-danger" onclick="removeAccountImmediate('${steamId}')">${t('buttonDelete')}</button>
                     </div>
                 `;
             });
         } else {
-            accountsList.innerHTML = `<p style="color: #8b949e;">${t('noAccountsConfigured')}</p>`;
+            accountsList.innerHTML = `<p class="text-muted">${t('noAccountsConfigured')}</p>`;
         }
     } catch (error) {
         console.error('Error loading settings:', error);
@@ -1101,18 +1092,18 @@ function renderGamesTable(data, accountId) {
         const storeUrl = `https://store.steampowered.com/app/${game.appid}`;
         return `
             <tr>
-                <td style="text-align: center;"><input type="checkbox" data-appid-checkbox data-appid="${game.appid}" onchange="toggleAppIdSelection(${game.appid}, this)"></td>
-                <td><span style="color: #1f6feb; text-decoration: underline; cursor: pointer;" onclick="copyAppId(${game.appid})">${game.appid}</span></td>
-                <td><a href="${storeUrl}" target="_blank" style="color: #1f6feb; text-decoration: none; cursor: pointer;">${game.name}</a></td>
-                <td style="text-align: right;">${formatNumber(game.minutes)}</td>
-                <td style="text-align: right;">${formatNumber(hours, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}h</td>
+                <td class="align-center"><input type="checkbox" data-appid-checkbox data-appid="${game.appid}" onchange="toggleAppIdSelection(${game.appid}, this)"></td>
+                <td><button type="button" class="appid-link" onclick="copyAppId(${game.appid})">${game.appid}</button></td>
+                <td><a href="${storeUrl}" target="_blank" class="store-link">${game.name}</a></td>
+                <td class="align-right num-cell">${formatNumber(game.minutes)}</td>
+                <td class="align-right num-cell">${formatNumber(hours, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}h</td>
                 <td>${renderFreeStatus(game.is_free)}</td>
             </tr>
         `;
     }).join('');
 
     return `
-        <p style="padding: 10px 16px; color: #8b949e;">
+        <p class="table-summary">
             ${t('gamesSummary', {
         total: formatNumber(data.total),
         hours: formatNumber(totalHours, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -1124,23 +1115,23 @@ function renderGamesTable(data, accountId) {
         limit: formatNumber(data.limit)
     })}
         </p>
-        <button id="copy-selected-btn" class="btn btn-secondary" onclick="copySelectedAppIds()" style="display: none; margin-bottom: 12px;"></button>
+        <button id="copy-selected-btn" class="btn btn-secondary copy-selected-btn" onclick="copySelectedAppIds()" style="display: none;"></button>
         <table>
             <thead>
                 <tr>
                     <th style="width: 40px;"><input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll(this)"></th>
                     <th>${t('tableAppId')}</th>
                     <th>${t('tableName')}</th>
-                    <th style="text-align: right;">${t('tableMinutes')}</th>
-                    <th style="text-align: right;">${t('tableHours')}</th>
+                    <th class="align-right">${t('tableMinutes')}</th>
+                    <th class="align-right">${t('tableHours')}</th>
                     <th>${t('tableType')}</th>
                 </tr>
             </thead>
             <tbody>${rows}</tbody>
         </table>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px;">
+        <div class="pagination">
             <button class="btn btn-secondary" ${hasPrev ? '' : 'disabled'} onclick="loadGames('${accountId}', ${Math.max(data.offset - data.limit, 0)})">${t('paginationPrev', { limit: data.limit })}</button>
-            <span style="color: #8b949e;">${t('paginationPage', {
+            <span class="pagination-page">${t('paginationPage', {
         current: Math.floor(data.offset / data.limit) + 1,
         total: Math.max(Math.ceil(data.total / data.limit), 1)
     })}</span>
@@ -1168,14 +1159,14 @@ async function loadGames(accountId, offset = 0) {
         const data = await response.json();
 
         if (!response.ok) {
-            container.innerHTML = `<p>\u274C ${translateApiMessage(data.error)}</p>`;
+            container.innerHTML = `<p>${translateApiMessage(data.error)}</p>`;
             return;
         }
 
         container.innerHTML = renderGamesTable(data, accountId);
         updateSelectionUI();
     } catch (error) {
-        container.innerHTML = `<p>\u274C ${t('errorGeneric', { error })}</p>`;
+        container.innerHTML = `<p>${t('errorGeneric', { error })}</p>`;
     }
 }
 
@@ -1296,28 +1287,28 @@ async function loadAllUntestedGames() {
         const data = await response.json();
 
         if (!response.ok) {
-            container.innerHTML = `<p>\u274C ${translateApiMessage(data.error)}</p>`;
+            container.innerHTML = `<p>${translateApiMessage(data.error)}</p>`;
             return;
         }
 
         if (data.count === 0) {
-            container.innerHTML = `<p style="color: #3fb950;">${t('noUntestedGames')}</p>`;
+            container.innerHTML = `<p class="table-summary" style="color: var(--accent);">${t('noUntestedGames')}</p>`;
             return;
         }
 
         let html = `
-            <p style="padding: 10px 16px; color: #8b949e;">
+            <p class="table-summary">
                 ${t('untestedSummary', { count: formatNumber(data.count) })}
             </p>
-            <button id="copy-selected-untested-btn" class="btn btn-secondary" onclick="copySelectedUntestedAppIds()" style="display: none; margin-bottom: 12px;"></button>
+            <button id="copy-selected-untested-btn" class="btn btn-secondary copy-selected-btn" onclick="copySelectedUntestedAppIds()" style="display: none;"></button>
             <table class="untested-table">
                 <thead>
                     <tr>
                         <th style="width: 40px;"><input type="checkbox" id="select-all-untested-checkbox" onchange="toggleSelectAllUntested(this)"></th>
-                        <th style="text-align: right;">${t('tableAppId')}</th>
+                        <th class="align-right">${t('tableAppId')}</th>
                         <th>${t('tableName')}</th>
-                        <th style="text-align: right;">${t('tableMinutes')}</th>
-                        <th style="text-align: center;">${t('tableClassify')}</th>
+                        <th class="align-right">${t('tableMinutes')}</th>
+                        <th class="align-center">${t('tableClassify')}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1329,16 +1320,16 @@ async function loadAllUntestedGames() {
 
             html += `
                 <tr>
-                    <td style="text-align: center;"><input type="checkbox" data-untested-appid-checkbox data-appid="${game.appid}" onchange="toggleUntestedAppIdSelection(${game.appid}, this)"></td>
-                    <td style="text-align: right;"><span style="color: #1f6feb; text-decoration: underline; cursor: pointer;" onclick="copyAppId(${game.appid})">${game.appid}</span></td>
-                    <td><a href="${storeUrl}" target="_blank" style="color: #1f6feb;">${game.name}</a></td>
-                    <td style="text-align: right;">${t('minutesHours', {
+                    <td class="align-center"><input type="checkbox" data-untested-appid-checkbox data-appid="${game.appid}" onchange="toggleUntestedAppIdSelection(${game.appid}, this)"></td>
+                    <td class="align-right"><button type="button" class="appid-link" onclick="copyAppId(${game.appid})">${game.appid}</button></td>
+                    <td><a href="${storeUrl}" target="_blank" class="store-link">${game.name}</a></td>
+                    <td class="align-right num-cell">${t('minutesHours', {
                 minutes: formatNumber(game.minutes),
                 hours: formatNumber(hours, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
             })}</td>
-                    <td style="text-align: center;">
-                        <button class="btn btn-status-free" onclick="setGameFree(event, ${game.account_id}, ${game.appid})">${t('buttonClassifyFree')}</button>
-                        <button class="btn btn-status-paid" onclick="setGamePaid(event, ${game.account_id}, ${game.appid})">${t('buttonClassifyPaid')}</button>
+                    <td class="align-center">
+                        <button class="btn-status-free" onclick="setGameFree(event, ${game.account_id}, ${game.appid})">${t('buttonClassifyFree')}</button>
+                        <button class="btn-status-paid" onclick="setGamePaid(event, ${game.account_id}, ${game.appid})">${t('buttonClassifyPaid')}</button>
                     </td>
                 </tr>
             `;
@@ -1348,7 +1339,7 @@ async function loadAllUntestedGames() {
         container.innerHTML = html;
         updateUntestedSelectionUI();
     } catch (error) {
-        container.innerHTML = `<p>\u274C ${t('errorGeneric', { error })}</p>`;
+        container.innerHTML = `<p>${t('errorGeneric', { error })}</p>`;
     }
 }
 
@@ -1380,7 +1371,7 @@ async function updateGameStatus(event, accountId, appid, isFree, label) {
                     const tbody = document.querySelector('.untested-table tbody');
                     if (!tbody || tbody.children.length === 0) {
                         const container = document.getElementById('untested-container');
-                        container.innerHTML = `<p style="color: #3fb950;">${t('noUntestedGamesRemaining')}</p>`;
+                        container.innerHTML = `<p class="table-summary" style="color: var(--accent);">${t('noUntestedGamesRemaining')}</p>`;
                     }
                 }, 300);
             }

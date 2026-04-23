@@ -11,10 +11,10 @@
 <body>
     <div class="container">
         <header>
-            <h1 data-i18n="siteTitle">&#x1F3AE; Steam Playtime Manager</h1>
+            <h1 data-i18n="siteTitle">Steam Playtime Manager</h1>
             <nav>
                 <a href="/" id="nav-dashboard" class="nav-link active" data-i18n="navDashboard">Dashboard</a>
-                <a href="#untested" id="nav-untested" class="nav-link" onclick="showUntestedTab()" data-i18n="navUntested">&#x2753; Untested</a>
+                <a href="#untested" id="nav-untested" class="nav-link" onclick="showUntestedTab()" data-i18n="navUntested">Untested</a>
                 <div class="nav-controls">
                     <a href="#settings" id="nav-settings" class="nav-link" onclick="showSettings()" data-i18n="navSettings">&#x2699;&#xFE0F; Instellingen</a>
                     <label class="language-picker" for="language-select">
@@ -34,7 +34,7 @@
                     <h2 data-i18n="accountsHeading">Je Accounts</h2>
                     <div class="dashboard-actions">
                         <button id="fetch-all-btn" type="button" class="btn btn-primary" onclick="fetchAllAccounts()"
-                            data-i18n="buttonFetchAll">&#x21BB; Alles Ophalen</button>
+                            data-i18n="buttonFetchAll">Alles Ophalen</button>
                     </div>
                 </div>
 
@@ -57,12 +57,12 @@
                             Geen data
                             {% endif %}
                         </p>
-                        <div class="account-actions">
-                            <button onclick="fetchAccount(event, '{{ account_id }}')" class="btn btn-primary" data-account-fetch="true" data-i18n="buttonFetch">&#x2B07;&#xFE0F; Ophalen</button>
+                            <div class="account-actions">
+                            <button onclick="fetchAccount(event, '{{ account_id }}')" class="btn btn-primary" data-account-fetch="true" data-i18n="buttonFetch">Ophalen</button>
                             {% if account.exists %}
-                            <button onclick="viewGames('{{ account_id }}')" class="btn btn-secondary" data-i18n="buttonView">&#x1F441;&#xFE0F; Bekijken</button>
-                            <button onclick="enrichFreeInfo(event, '{{ account_id }}')" class="btn btn-secondary" data-i18n="buttonFreeCheck">&#x1F504; Gratis Checken</button>
-                            <button onclick="exportData('{{ account_id }}', 'csv')" class="btn btn-secondary" data-i18n="buttonCsv">&#x1F4CA; CSV</button>
+                            <button onclick="viewGames('{{ account_id }}')" class="btn btn-secondary" data-i18n="buttonView">Bekijken</button>
+                            <button onclick="enrichFreeInfo(event, '{{ account_id }}')" class="btn btn-secondary" data-i18n="buttonFreeCheck">Gratis Checken</button>
+                            <button onclick="exportData('{{ account_id }}', 'csv')" class="btn btn-secondary" data-i18n="buttonCsv">CSV</button>
                             {% endif %}
                         </div>
                     </div>
@@ -87,7 +87,7 @@
                     <label><input type="checkbox" id="paid-only"> <span data-i18n="filterPaidOnly">Alleen betaald</span></label>
                     <label><input type="checkbox" id="free-only"> <span data-i18n="filterFreeOnly">Alleen gratis</span></label>
                     <label><input type="checkbox" id="sort-asc"> <span data-i18n="filterSortAsc">Oplopend sorteren</span></label>
-                    <button onclick="loadGames()" class="btn btn-primary" data-i18n="buttonFilter">&#x1F50D; Filteren</button>
+                    <button onclick="loadGames()" class="btn btn-primary" data-i18n="buttonFilter">Filteren</button>
                     <button onclick="backToDashboard()" class="btn btn-secondary" data-i18n="buttonBack">&#x2190; Terug</button>
                 </div>
 
@@ -105,65 +105,63 @@
                             placeholder="Krijg je op https://steamcommunity.com/dev/apikey">
                         <small>
                             <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener noreferrer"
-                                style="color: #1f6feb; text-decoration: none;" data-i18n="apiKeyLinkText">
-                                &#x1F517; Haal je API key op bij Steam
+                                data-i18n="apiKeyLinkText">
+                                Haal je API key op bij Steam
                             </a>
                         </small>
                         <small data-i18n="apiKeyNote">Je sleutels worden alleen lokaal opgeslagen en nooit gedeeld.</small>
                     </div>
 
-                    <h3 style="margin-top: 30px; margin-bottom: 15px;" data-i18n="settingsAccountsHeading">Je Accounts</h3>
+                    <h3 data-i18n="settingsAccountsHeading">Je Accounts</h3>
                     <div id="accounts-list">
                         {% if accounts_list %}
                         {% for steam_id in accounts_list %}
-                        <div class="account-settings-item"
-                            style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--secondary); border-radius: 6px; margin-bottom: 10px;">
-                            <div style="flex: 1;">
-                                <strong>Account {{ loop.index }}</strong>
-                                <div style="font-family: monospace; color: #8b949e; font-size: 0.9em; margin-top: 4px;">
-                                    {{ steam_id }}</div>
+                        <div class="account-settings-item">
+                            <div class="account-settings-item__info">
+                                <strong class="account-settings-item__label">Account {{ loop.index }}</strong>
+                                <div class="account-settings-item__id">{{ steam_id }}</div>
                             </div>
                             <button type="button" class="btn btn-danger"
                                 onclick="removeAccountImmediate('{{ steam_id }}')"
-                                style="padding: 8px 12px; white-space: nowrap;" data-i18n="buttonDelete">&#x1F5D1;&#xFE0F; Verwijderen</button>
+                                data-i18n="buttonDelete">Verwijderen</button>
                         </div>
                         {% endfor %}
                         {% else %}
-                        <p style="color: #8b949e;" data-i18n="noAccountsConfigured">Geen accounts ingesteld. Voeg er een toe!</p>
+                        <p class="text-muted" data-i18n="noAccountsConfigured">Geen accounts ingesteld. Voeg er een toe!</p>
                         {% endif %}
                     </div>
 
-                    <button type="button" onclick="saveSettings()" class="btn btn-primary" data-i18n="buttonSave">&#x1F4BE; Opslaan</button>
+                    <button type="button" onclick="saveSettings()" class="btn btn-primary" data-i18n="buttonSave">Opslaan</button>
                     <button type="button" onclick="backToDashboard()" class="btn btn-secondary" data-i18n="buttonBack">&#x2190; Terug</button>
                 </form>
 
-                <hr style="margin: 30px 0; border: 1px solid var(--border);">
-                <h3 style="margin-bottom: 20px;" data-i18n="newAccountHeading">&#x2795; Nieuw Account Toevoegen</h3>
-                <form id="add-account-form" style="max-width: 400px;">
+                <hr class="settings-divider">
+                <h3 data-i18n="newAccountHeading">Nieuw Account Toevoegen</h3>
+                <form id="add-account-form">
                     <div class="form-group">
                         <label for="new-steam-id" data-i18n="newSteamIdLabel">Steam ID64:</label>
                         <input type="text" id="new-steam-id" placeholder="765611984XXXXXXXXX" pattern="[0-9]{17}"
                             required>
                         <small data-i18n="newSteamIdHint">17-cijferig getal van je Steam64 ID</small>
                     </div>
-                    <button type="button" onclick="addNewAccount()" class="btn btn-primary" data-i18n="buttonAddAccount">&#x2795; Account Toevoegen</button>
+                    <button type="button" onclick="addNewAccount()" class="btn btn-primary" data-i18n="buttonAddAccount">Account Toevoegen</button>
                 </form>
             </section>
 
             <section id="untested-section" class="section" style="display:none;">
-                <h2 data-i18n="untestedHeading">&#x2753; Untested Games</h2>
-                <p style="color: #8b949e; margin-bottom: 20px;" data-i18n="untestedDescription">
+                <h2 data-i18n="untestedHeading">Untested Games</h2>
+                <p class="untested-intro" data-i18n="untestedDescription">
                     Games waarvan we de gratis/betaald status nog niet hebben kunnen bepalen.
                     Je kunt ze hier handmatig aanpassen met een klik per game.
                 </p>
 
-                <div style="margin-bottom: 20px; display: flex; gap: 10px;">
-                    <button onclick="loadAllUntestedGames()" class="btn btn-primary" data-i18n="buttonLoadUntested">&#x1F504; Laad Untested Games</button>
-                    <button onclick="retryAllUntestedGames(event)" class="btn btn-secondary" data-i18n="buttonRetryAll">&#x1F501; Alle Opnieuw Scannen</button>
+                <div class="toolbar">
+                    <button onclick="loadAllUntestedGames()" class="btn btn-primary" data-i18n="buttonLoadUntested">Laad Untested Games</button>
+                    <button onclick="retryAllUntestedGames(event)" class="btn btn-secondary" data-i18n="buttonRetryAll">Alle Opnieuw Scannen</button>
                 </div>
 
                 <div id="untested-container" class="untested-table-container">
-                    <p style="color: #8b949e;" data-i18n="untestedPlaceholder">Klik bovenstaande knop om untested games te laden</p>
+                    <p class="table-summary text-muted" data-i18n="untestedPlaceholder">Klik bovenstaande knop om untested games te laden</p>
                 </div>
             </section>
         </main>
