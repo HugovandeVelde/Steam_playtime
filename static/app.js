@@ -283,6 +283,7 @@ let fetchAllPollInterval = null;
 let fetchAllPollTimeout = null;
 let fetchAllStatusSnapshot = null;
 let fetchAllCompletionHandled = false;
+let progressBannerCloseAbort = null;
 let currentLanguage = DEFAULT_LANGUAGE;
 let currentSettingsAccounts = [];
 
@@ -519,18 +520,44 @@ function renderFetchAllProgress(status, options = {}) {
         return;
     }
 
-    if (!status || status.status === 'idle' || (initial && status.status !== 'running')) {
-        container.style.display = 'none';
-        container.innerHTML = '';
+    const shouldHide = !status || status.status === 'idle' || (initial && status.status !== 'running');
+    const isCurrentlyVisible = container.style.display !== 'none' && container.innerHTML.trim() !== '';
+
+    if (shouldHide) {
+        if (!isCurrentlyVisible) {
+            container.style.display = 'none';
+            container.innerHTML = '';
+            container.classList.remove('is-opening', 'is-closing');
+            return;
+        }
+        if (progressBannerCloseAbort) {
+            progressBannerCloseAbort.abort();
+        }
+        progressBannerCloseAbort = new AbortController();
+        container.classList.remove('is-opening');
+        container.classList.add('is-closing');
+        container.addEventListener('animationend', () => {
+            container.classList.remove('is-closing');
+            container.style.display = 'none';
+            container.innerHTML = '';
+            progressBannerCloseAbort = null;
+        }, { once: true, signal: progressBannerCloseAbort.signal });
         return;
     }
 
+    if (progressBannerCloseAbort) {
+        progressBannerCloseAbort.abort();
+        progressBannerCloseAbort = null;
+    }
+
+    const wasHidden = !isCurrentlyVisible;
     const currentSteamId = status.current_steam_id || t('fetchAllNoCurrentAccount');
     const errorItems = (Array.isArray(status.errors) ? status.errors : [])
         .map((error) => '<li>#' + escapeHtml(error.account_index) + ' (' + escapeHtml(error.steam_id) + '): ' + escapeHtml(error.message) + '</li>')
         .join('');
     const errorsHtml = errorItems ? `<ul class="progress-banner-errors">${errorItems}</ul>` : '';
 
+    container.classList.remove('is-closing');
     container.style.display = 'block';
     container.innerHTML = `
         <div class="progress-banner-header">
@@ -562,6 +589,12 @@ function renderFetchAllProgress(status, options = {}) {
         <div class="progress-banner-message">${escapeHtml(getFetchAllMessage(status))}</div>
         ${errorsHtml}
     `;
+
+    if (wasHidden) {
+        container.classList.remove('is-opening');
+        void container.offsetWidth;
+        container.classList.add('is-opening');
+    }
 }
 
 function clearFetchAllPolling() {
@@ -630,7 +663,11 @@ async function pollFetchAllStatus(options = {}) {
                 }), 'error');
             }
 
-            setTimeout(() => location.reload(), 1500);
+            setTimeout(() => { refreshAccountCards(); }, 500);
+            setTimeout(() => {
+                fetchAllStatusSnapshot = null;
+                renderFetchAllProgress(null, { initial: true });
+            }, 4000);
         }
     } catch (error) {
         if (!initial) {
@@ -647,23 +684,43 @@ async function fetchAllAccounts() {
     }
     setAccountFetchButtonsDisabled(true);
 
+    fetchAllCompletionHandled = false;
+    fetchAllStatusSnapshot = {
+        status: 'running',
+        phase: 'fetching',
+        current_account_index: 0,
+        total_accounts: 0,
+        current_steam_id: null,
+        completed_accounts: 0,
+        error_count: 0,
+        errors: [],
+        unknown_appids_total: 0,
+        message: ''
+    };
+    renderFetchAllProgress(fetchAllStatusSnapshot);
+
     try {
         const response = await fetch('/api/fetch-all', { method: 'POST' });
         const data = await response.json();
 
         if (!response.ok) {
+            fetchAllStatusSnapshot = null;
+            renderFetchAllProgress(null, { initial: true });
             setFetchAllRunningState(false);
             showNotification(translateApiMessage(data.error || data.message), 'error');
             return;
         }
 
-        fetchAllCompletionHandled = false;
+        fetchAllStatusSnapshot.total_accounts = data.total_accounts ?? 0;
+        renderFetchAllProgress(fetchAllStatusSnapshot);
         showNotification(t('notificationFetchAllStarted', {
             total: formatNumber(data.total_accounts ?? 0)
         }));
         startFetchAllPolling();
         await pollFetchAllStatus();
     } catch (error) {
+        fetchAllStatusSnapshot = null;
+        renderFetchAllProgress(null, { initial: true });
         setFetchAllRunningState(false);
         showNotification(t('errorFetchAllStart', { error }), 'error');
     }
@@ -867,6 +924,51 @@ function copySelectedUntestedAppIds() {
         console.error('Copy error:', error);
         showNotification(t('errorGeneric', { error }), 'error');
     });
+}
+
+async function refreshAccountCards() {
+    try {
+        const response = await fetch('/api/accounts-summary');
+        if (!response.ok) {
+            return;
+        }
+        const summary = await response.json();
+
+        document.querySelectorAll('.account-card').forEach((card, index) => {
+            const entry = summary[String(index + 1)];
+            if (!entry) {
+                return;
+            }
+
+            const nameEl = card.querySelector('h3');
+            if (nameEl) {
+                nameEl.textContent = entry.persona_name || t('unknownUser');
+            }
+
+            const img = card.querySelector('.account-avatar img');
+            if (img && entry.avatar_url) {
+                img.src = entry.avatar_url;
+                img.alt = entry.persona_name || '';
+                img.style.display = 'block';
+            }
+
+            const countEl = card.querySelector('[data-role="game-count"]');
+            if (countEl) {
+                countEl.dataset.exists = entry.exists ? 'true' : 'false';
+                countEl.dataset.gameCount = entry.game_count ?? 0;
+                countEl.dataset.totalHours = entry.total_hours ?? 0;
+            }
+
+            card.dataset.exists = entry.exists ? 'true' : 'false';
+            card.querySelectorAll('[data-requires-data="true"]').forEach((btn) => {
+                btn.hidden = !entry.exists;
+            });
+        });
+
+        updateDashboardAccountCopy();
+    } catch (error) {
+        console.warn('Account summary refresh failed:', error);
+    }
 }
 
 async function loadProfilesAsync() {

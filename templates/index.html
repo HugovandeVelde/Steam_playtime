@@ -42,7 +42,7 @@
 
                 <div class="accounts-grid">
                     {% for account_id, account in accounts.items() %}
-                    <div class="account-card">
+                    <div class="account-card" data-account-id="{{ account_id }}" data-exists="{{ 'true' if account.exists else 'false' }}">
                         <div class="account-avatar">
                             <img src="{{ account.avatar_url }}" alt="{{ account.persona_name }}" class="avatar-img" {%
                                 if not account.avatar_url %}style="display:none" {% endif %}>
@@ -59,11 +59,9 @@
                         </p>
                             <div class="account-actions">
                             <button onclick="fetchAccount(event, '{{ account_id }}')" class="btn btn-primary" data-account-fetch="true" data-i18n="buttonFetch">Ophalen</button>
-                            {% if account.exists %}
-                            <button onclick="viewGames('{{ account_id }}')" class="btn btn-secondary" data-i18n="buttonView">Bekijken</button>
-                            <button onclick="enrichFreeInfo(event, '{{ account_id }}')" class="btn btn-secondary" data-i18n="buttonFreeCheck">Gratis Checken</button>
-                            <button onclick="exportData('{{ account_id }}', 'csv')" class="btn btn-secondary" data-i18n="buttonCsv">CSV</button>
-                            {% endif %}
+                            <button onclick="viewGames('{{ account_id }}')" class="btn btn-secondary" data-requires-data="true" {% if not account.exists %}hidden{% endif %} data-i18n="buttonView">Bekijken</button>
+                            <button onclick="enrichFreeInfo(event, '{{ account_id }}')" class="btn btn-secondary" data-requires-data="true" {% if not account.exists %}hidden{% endif %} data-i18n="buttonFreeCheck">Gratis Checken</button>
+                            <button onclick="exportData('{{ account_id }}', 'csv')" class="btn btn-secondary" data-requires-data="true" {% if not account.exists %}hidden{% endif %} data-i18n="buttonCsv">CSV</button>
                         </div>
                     </div>
                     {% endfor %}

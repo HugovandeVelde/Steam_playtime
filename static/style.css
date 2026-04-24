@@ -991,12 +991,54 @@ table input[type="checkbox"]:checked::after,
         linear-gradient(135deg, var(--accent-soft), transparent 50%),
         var(--paper-raised);
     border-radius: 2px;
-    animation: bannerIn 0.4s var(--ease-out);
+    overflow: hidden;
+    transform-origin: top;
+}
+
+.progress-banner.is-opening {
+    animation: bannerIn 0.35s var(--ease-out);
+}
+
+.progress-banner.is-closing {
+    animation: bannerOut 0.28s var(--ease-out) forwards;
 }
 
 @keyframes bannerIn {
-    from { opacity: 0; transform: translateY(-6px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        max-height: 0;
+        margin-bottom: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+        border-top-width: 0;
+        border-bottom-width: 0;
+    }
+    to {
+        opacity: 1;
+        max-height: 600px;
+        margin-bottom: 24px;
+        padding-top: 22px;
+        padding-bottom: 22px;
+        border-top-width: 1px;
+        border-bottom-width: 1px;
+    }
+}
+
+@keyframes bannerOut {
+    from {
+        opacity: 1;
+        max-height: 600px;
+        margin-bottom: 24px;
+        padding-top: 22px;
+        padding-bottom: 22px;
+    }
+    to {
+        opacity: 0;
+        max-height: 0;
+        margin-bottom: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+    }
 }
 
 .progress-banner-header {

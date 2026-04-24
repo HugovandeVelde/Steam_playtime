@@ -269,28 +269,23 @@ def _run_shared_enrichment(accounts_list: List[str],
         _update_per_account_file(json_file, new_info)
 
 
-@app.route('/')
-def index():
-    """Dashboard - toon accounts en overzicht."""
+def _build_accounts_summary() -> Dict[int, Dict[str, Any]]:
+    """Bouw een overzicht per account met profiel- en speeltijd-info voor de dashboardkaarten."""
     config = get_env_config()
-    accounts = {}
     profiles_cache = load_profiles_cache()
 
-    # Parse dynamische accounts uit JSON
     accounts_json = config.get("STEAM_ACCOUNTS", "[]")
     try:
         accounts_list = json.loads(accounts_json)
     except json.JSONDecodeError:
         accounts_list = []
 
-    # Verzamel accounts met hun data (uit cache)
+    accounts: Dict[int, Dict[str, Any]] = {}
     for idx, steam_id in enumerate(accounts_list, 1):
         json_file = DATA_DIR / f"owned_games_{steam_id}.json"
-
-        # Try to load from cache first
         cached_profile = profiles_cache.get(steam_id, {})
 
-        accounts[idx] = {
+        entry: Dict[str, Any] = {
             "steam_id": steam_id,
             "exists": json_file.exists(),
             "game_count": 0,
@@ -299,21 +294,39 @@ def index():
             "avatar_url": cached_profile.get("avatar_url", "")
         }
 
-        if json_file.exists():
+        if entry["exists"]:
             try:
                 data = json.loads(json_file.read_text(encoding="utf-8"))
                 games = data.get("response", {}).get("games", [])
-                accounts[idx]["game_count"] = len(games)
+                entry["game_count"] = len(games)
                 total_minutes = sum(
                     int(g.get("playtime_forever", 0) or 0) for g in games)
-                accounts[idx]["total_hours"] = round(total_minutes / 60, 1)
+                entry["total_hours"] = round(total_minutes / 60, 1)
             except (json.JSONDecodeError, IOError):
                 pass
+
+        accounts[idx] = entry
+
+    return accounts
+
+
+@app.route('/')
+def index():
+    """Dashboard - toon accounts en overzicht."""
+    config = get_env_config()
+    accounts = _build_accounts_summary()
+    accounts_list = [a["steam_id"] for a in accounts.values()]
 
     return render_template('index.html',
                            accounts=accounts,
                            accounts_list=accounts_list,
                            api_key_set=bool(config.get("STEAM_API_KEY")))
+
+
+@app.route('/api/accounts-summary')
+def accounts_summary():
+    """JSON-variant van de dashboard-kaartdata voor in-place refresh."""
+    return jsonify(_build_accounts_summary())
 
 
 @app.route('/api/settings', methods=['GET', 'POST'])
