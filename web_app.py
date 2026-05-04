@@ -25,7 +25,8 @@ from steam_playtime import (load_env, save_central_free_info,
                             load_central_free_info, build_api_url,
                             fetch_owned_games_json, load_games_from_json,
                             enrich_with_free_info, filter_rows, sort_rows,
-                            save_json, fetch_game_details)
+                            save_json, fetch_game_details, STORE_API_DELAY,
+                            SteamRateLimited)
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.config['JSON_SORT_KEYS'] = False
@@ -51,11 +52,13 @@ _fetch_all_status: Dict[str, Any] = {
     "error_count": 0,
     "errors": [],
     "unknown_appids_total": 0,
+    "rate_limited": False,
     "message": ""
 }
 
 
-def set_enrichment_status(steam_id: str, status: str,
+def set_enrichment_status(steam_id: str,
+                          status: str,
                           message: str = "") -> None:
     with _enrichment_lock:
         _enrichment_status[steam_id] = {
@@ -87,9 +90,9 @@ def replace_fetch_all_status(status: Dict[str, Any]) -> None:
         "error_count": 0,
         "errors": [],
         "unknown_appids_total": 0,
+        "rate_limited": False,
         "message": "",
-        **status,
-        "updated_at": time.time()
+        **status, "updated_at": time.time()
     }
     with _fetch_all_lock:
         _fetch_all_status.clear()
@@ -99,8 +102,8 @@ def replace_fetch_all_status(status: Dict[str, Any]) -> None:
 def get_fetch_all_status() -> Dict[str, Any]:
     with _fetch_all_lock:
         return {
-            **_fetch_all_status,
-            "errors": [dict(err) for err in _fetch_all_status.get("errors", [])]
+            **_fetch_all_status, "errors":
+            [dict(err) for err in _fetch_all_status.get("errors", [])]
         }
 
 
@@ -109,8 +112,8 @@ def is_fetch_all_running() -> bool:
         return _fetch_all_status.get("status") == "running"
 
 
-def _update_per_account_file(json_path: Path,
-                             free_info: Dict[int, Any]) -> None:
+def _update_per_account_file(json_path: Path, free_info: Dict[int,
+                                                              Any]) -> None:
     """Update a per-account JSON file with the latest free/paid info."""
     try:
         data = json.loads(json_path.read_text(encoding="utf-8"))
@@ -252,14 +255,36 @@ def _fetch_and_store_account_data(
 
 def _run_shared_enrichment(accounts_list: List[str],
                            central_free_info: Dict[int, Any],
-                           unknown_appids: Set[int]) -> None:
-    """Enrich free/paid info once for all newly discovered app IDs."""
+                           unknown_appids: Set[int]) -> bool:
+    """Enrich free/paid info once for all newly discovered app IDs.
+
+    Geeft True terug als de loop voortijdig stopte wegens rate limiting; de
+    caller kan dat dan aan de UI doorgeven via set_fetch_all_status.
+    """
     if not unknown_appids:
-        return
+        return False
 
     new_info = dict(central_free_info)
-    for appid in sorted(unknown_appids):
-        new_info[appid] = fetch_game_details(int(appid))
+    sorted_appids = sorted(unknown_appids)
+    rate_limited = False
+    for i, appid in enumerate(sorted_appids):
+        try:
+            new_info[appid] = fetch_game_details(int(appid))
+        except SteamRateLimited:
+            # Schrijf appid NIET naar new_info; laat hem uncached staan.
+            rate_limited = True
+            print(
+                "⛔ Storefront blijft throttlen, fetch-all-verrijking stopt op "
+                f"{i}/{len(sorted_appids)}.")
+            # Persist al opgehaalde lookups voordat we de loop verlaten.
+            save_central_free_info(new_info)
+            break
+        if (i + 1) % 10 == 0:
+            # Flush tussenstand zodat een onderbroken fetch-all-batch niet
+            # alle al-opgehaalde appids opnieuw moet bevragen.
+            save_central_free_info(new_info)
+        if i + 1 < len(sorted_appids):
+            time.sleep(STORE_API_DELAY)
 
     save_central_free_info(new_info)
     sort_free_info_cache()
@@ -267,6 +292,8 @@ def _run_shared_enrichment(accounts_list: List[str],
     for steam_id in accounts_list:
         json_file = DATA_DIR / f"owned_games_{steam_id}.json"
         _update_per_account_file(json_file, new_info)
+
+    return rate_limited
 
 
 def _build_accounts_summary() -> Dict[int, Dict[str, Any]]:
@@ -511,7 +538,9 @@ def get_account_games(account_id: int):
         min_min = request.args.get('min_minutes', type=int)
         max_min = request.args.get('max_minutes', type=int)
         only_zero = request.args.get('only_zero', default=False, type=bool)
-        exclude_zero = request.args.get('exclude_zero', default=False, type=bool)
+        exclude_zero = request.args.get('exclude_zero',
+                                        default=False,
+                                        type=bool)
         paid_only = request.args.get('paid_only', default=False, type=bool)
         free_only = request.args.get('free_only', default=False, type=bool)
         sort_asc = request.args.get('sort_asc', default=False, type=bool)
@@ -519,8 +548,8 @@ def get_account_games(account_id: int):
         offset = max(request.args.get('offset', type=int, default=0), 0)
 
         # Filter
-        filtered = filter_rows(rows, min_min, max_min, only_zero,
-                               exclude_zero, paid_only, free_only)
+        filtered = filter_rows(rows, min_min, max_min, only_zero, exclude_zero,
+                               paid_only, free_only)
 
         # Sort
         sorted_rows = sort_rows(filtered, ascending=sort_asc)
@@ -591,12 +620,19 @@ def fetch_account_data(account_id: int):
                     steam_id, "running",
                     f"{unknown_count} games worden gecontroleerd...")
                 try:
-                    new_info = enrich_with_free_info(rows, central_free_info)
+                    new_info, rate_limited = enrich_with_free_info(
+                        rows, central_free_info)
                     save_central_free_info(new_info)
                     sort_free_info_cache()
                     _update_per_account_file(json_path, new_info)
-                    set_enrichment_status(steam_id, "done",
-                                         "Enrichment voltooid")
+                    if rate_limited:
+                        set_enrichment_status(
+                            steam_id, "rate_limited",
+                            "Steam-storefront throttlede ons; "
+                            "verrijking onvolledig. Probeer later opnieuw.")
+                    else:
+                        set_enrichment_status(steam_id, "done",
+                                              "Enrichment voltooid")
                 except Exception as e:
                     set_enrichment_status(steam_id, "error", str(e))
 
@@ -669,8 +705,7 @@ def fetch_all_accounts():
                     phase="fetching",
                     current_account_index=index,
                     current_steam_id=steam_id,
-                    message=f"Account {index}/{len(accounts_list)} ophalen..."
-                )
+                    message=f"Account {index}/{len(accounts_list)} ophalen...")
 
                 try:
                     result = _fetch_and_store_account_data(
@@ -683,29 +718,37 @@ def fetch_all_accounts():
                         "message": str(e)
                     })
 
-                set_fetch_all_status(completed_accounts=index,
-                                     error_count=len(errors),
-                                     errors=list(errors),
-                                     unknown_appids_total=len(
-                                         shared_unknown_appids))
+                set_fetch_all_status(
+                    completed_accounts=index,
+                    error_count=len(errors),
+                    errors=list(errors),
+                    unknown_appids_total=len(shared_unknown_appids))
 
-            set_fetch_all_status(phase="enriching",
-                                 current_steam_id=None,
-                                 current_account_index=len(accounts_list),
-                                 message="Gezamenlijke verrijking uitvoeren...")
+            set_fetch_all_status(
+                phase="enriching",
+                current_steam_id=None,
+                current_account_index=len(accounts_list),
+                message="Gezamenlijke verrijking uitvoeren...")
 
-            _run_shared_enrichment(accounts_list, central_free_info,
-                                   shared_unknown_appids)
+            rate_limited = _run_shared_enrichment(accounts_list,
+                                                  central_free_info,
+                                                  shared_unknown_appids)
 
-            set_fetch_all_status(status="done",
-                                 phase="finalizing",
-                                 current_steam_id=None,
-                                 completed_accounts=len(accounts_list),
-                                 error_count=len(errors),
-                                 errors=list(errors),
-                                 unknown_appids_total=len(
-                                     shared_unknown_appids),
-                                 message="Batch update voltooid")
+            final_status = "rate_limited" if rate_limited else "done"
+            final_message = (
+                "Batch update gestopt: Steam-storefront throttlede ons. "
+                "Probeer over een paar minuten opnieuw."
+            ) if rate_limited else "Batch update voltooid"
+            set_fetch_all_status(
+                status=final_status,
+                phase="finalizing",
+                current_steam_id=None,
+                completed_accounts=len(accounts_list),
+                error_count=len(errors),
+                errors=list(errors),
+                unknown_appids_total=len(shared_unknown_appids),
+                rate_limited=rate_limited,
+                message=final_message)
         except Exception as e:
             set_fetch_all_status(status="error",
                                  phase="finalizing",
@@ -718,9 +761,12 @@ def fetch_all_accounts():
     thread.start()
 
     return jsonify({
-        "status": "started",
-        "total_accounts": len(accounts_list),
-        "message": f"Batch update gestart voor {len(accounts_list)} accounts"
+        "status":
+        "started",
+        "total_accounts":
+        len(accounts_list),
+        "message":
+        f"Batch update gestart voor {len(accounts_list)} accounts"
     })
 
 
@@ -761,12 +807,19 @@ def enrich_account_free_info(account_id: int):
             set_enrichment_status(steam_id, "running",
                                   "Free-to-play info wordt ingezameld...")
             try:
-                new_info = enrich_with_free_info(rows, central_free_info)
+                new_info, rate_limited = enrich_with_free_info(
+                    rows, central_free_info)
                 save_central_free_info(new_info)
                 sort_free_info_cache()
                 _update_per_account_file(json_file, new_info)
-                set_enrichment_status(steam_id, "done",
-                                     "Enrichment voltooid")
+                if rate_limited:
+                    set_enrichment_status(
+                        steam_id, "rate_limited",
+                        "Steam-storefront throttlede ons; "
+                        "verrijking onvolledig. Probeer later opnieuw.")
+                else:
+                    set_enrichment_status(steam_id, "done",
+                                          "Enrichment voltooid")
             except Exception as e:
                 set_enrichment_status(steam_id, "error", str(e))
 
@@ -774,8 +827,7 @@ def enrich_account_free_info(account_id: int):
         thread.start()
 
         return jsonify({
-            "status":
-            "started",
+            "status": "started",
             "message":
             "🔄 Free-to-play info wordt ingezameld. Dit kan enkele minuten duren...",
             "steam_id": steam_id
@@ -1011,12 +1063,18 @@ def retry_untested_games(account_id: int):
                 steam_id, "running",
                 f"{len(untested_games)} untested games opnieuw controleren...")
             try:
-                new_info = enrich_with_free_info(rows, central_free_info)
+                new_info, rate_limited = enrich_with_free_info(
+                    rows, central_free_info)
                 save_central_free_info(new_info)
                 sort_free_info_cache()
                 _update_per_account_file(json_file, new_info)
-                set_enrichment_status(steam_id, "done",
-                                     "Retry voltooid")
+                if rate_limited:
+                    set_enrichment_status(
+                        steam_id, "rate_limited",
+                        "Steam-storefront throttlede ons; "
+                        "retry onvolledig. Probeer later opnieuw.")
+                else:
+                    set_enrichment_status(steam_id, "done", "Retry voltooid")
             except Exception as e:
                 set_enrichment_status(steam_id, "error", str(e))
 
@@ -1024,8 +1082,7 @@ def retry_untested_games(account_id: int):
         thread.start()
 
         return jsonify({
-            "status":
-            "started",
+            "status": "started",
             "message":
             f"🔄 {len(untested_games)} untested games worden opnieuw gecontroleerd...",
             "steam_id": steam_id
@@ -1118,7 +1175,7 @@ def retry_all_untested_games():
 
             if not untested_appids:
                 set_enrichment_status("__all__", "done",
-                                     "Geen untested games gevonden")
+                                      "Geen untested games gevonden")
                 return
 
             print(
@@ -1128,19 +1185,31 @@ def retry_all_untested_games():
             # Now fetch details for each untested appid
             new_info = dict(central_free_info)
             untested_games = []
+            rate_limited = False
+            sorted_appids = sorted(untested_appids)
 
-            for i, appid in enumerate(untested_appids, 1):
-                is_free = fetch_game_details(int(appid))
+            for i, appid in enumerate(sorted_appids, 1):
+                try:
+                    is_free = fetch_game_details(int(appid))
+                except SteamRateLimited:
+                    # Schrijf NIET; appid blijft als null in cache zodat
+                    # een volgende retry-poging hem opnieuw probeert.
+                    rate_limited = True
+                    print("⛔ Storefront blijft throttlen, retry stopt op "
+                          f"{i-1}/{len(sorted_appids)}.")
+                    break
                 new_info[int(appid)] = is_free
 
                 if is_free is None:
                     untested_games.append(appid)
 
                 if i % 10 == 0:
-                    print(f"  ... {i}/{len(untested_appids)}")
+                    print(f"  ... {i}/{len(sorted_appids)}")
+                if i < len(sorted_appids):
+                    time.sleep(STORE_API_DELAY)
 
             print(
-                f"✅ Retry complete: {len(untested_appids) - len(untested_games)} games verified"
+                f"✅ Retry complete: {len(sorted_appids) - len(untested_games)} games verified"
             )
 
             # Save updated info
@@ -1154,8 +1223,13 @@ def retry_all_untested_games():
                 _update_per_account_file(json_file, new_info)
 
             print("✅ All owned_games files updated")
-            set_enrichment_status("__all__", "done",
-                                 "Retry voltooid")
+            if rate_limited:
+                set_enrichment_status(
+                    "__all__", "rate_limited",
+                    "Steam-storefront throttlede ons; "
+                    "retry onvolledig. Probeer later opnieuw.")
+            else:
+                set_enrichment_status("__all__", "done", "Retry voltooid")
         except Exception as e:
             set_enrichment_status("__all__", "error", str(e))
 
@@ -1176,4 +1250,4 @@ def retry_all_untested_games():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001)

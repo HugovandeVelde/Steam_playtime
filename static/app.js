@@ -136,7 +136,9 @@ const TRANSLATIONS = {
         apiMessageGameStatusUpdated: 'Game status geupdate ({count} account(s))',
         apiMessageAccountAddedTotal: 'Account toegevoegd (totaal: {count})',
         apiMessageRetryUntested: '{count} untested games worden opnieuw gecontroleerd...',
-        apiMessageRetryAllUntested: '{count} untested games worden opnieuw gescanned. Dit kan enkele minuten duren...'
+        apiMessageRetryAllUntested: '{count} untested games worden opnieuw gescanned. Dit kan enkele minuten duren...',
+        notificationRateLimited: 'Steam-storefront tijdelijk geblokkeerd. Verrijking is onvolledig — probeer over een paar minuten opnieuw.',
+        fetchAllMessageRateLimited: 'Batch gestopt: Steam-storefront throttlede ons. Probeer over een paar minuten opnieuw.'
     },
     en: {
         documentTitle: 'Steam Playtime - Dashboard',
@@ -271,7 +273,9 @@ const TRANSLATIONS = {
         apiMessageGameStatusUpdated: 'Game status updated ({count} account(s))',
         apiMessageAccountAddedTotal: 'Account added (total: {count})',
         apiMessageRetryUntested: 'Retrying {count} untested games...',
-        apiMessageRetryAllUntested: 'Retrying {count} untested games. This may take a few minutes...'
+        apiMessageRetryAllUntested: 'Retrying {count} untested games. This may take a few minutes...',
+        notificationRateLimited: 'Steam storefront temporarily blocked. Enrichment is partial — try again in a few minutes.',
+        fetchAllMessageRateLimited: 'Batch stopped: Steam storefront throttled us. Try again in a few minutes.'
     }
 };
 
@@ -472,6 +476,10 @@ function getFetchAllMessage(status) {
         });
     }
 
+    if (status.status === 'rate_limited') {
+        return t('fetchAllMessageRateLimited');
+    }
+
     if (status.status === 'done') {
         return t('fetchAllMessageDone', {
             completed: formatNumber(status.completed_accounts ?? 0),
@@ -650,13 +658,18 @@ async function pollFetchAllStatus(options = {}) {
         clearFetchAllPolling();
         setFetchAllRunningState(false);
 
-        if (!fetchAllCompletionHandled && (status.status === 'done' || status.status === 'error')) {
+        if (!fetchAllCompletionHandled
+            && (status.status === 'done'
+                || status.status === 'error'
+                || status.status === 'rate_limited')) {
             fetchAllCompletionHandled = true;
             if (status.status === 'done') {
                 showNotification(t('notificationFetchAllDone', {
                     completed: formatNumber(status.completed_accounts ?? 0),
                     errors: formatNumber(status.error_count ?? 0)
                 }), status.error_count > 0 ? 'error' : 'success');
+            } else if (status.status === 'rate_limited') {
+                showNotification(t('notificationRateLimited'), 'error');
             } else {
                 showNotification(t('fetchAllMessageError', {
                     message: translateApiMessage(status.message || '')
@@ -1289,12 +1302,16 @@ function pollEnrichmentStatus(steamId) {
             const response = await fetch(`/api/enrich-status/${steamId}`);
             const data = await response.json();
 
-            if (data.status === 'done') {
+            if (data.status === 'done' || data.status === 'rate_limited') {
                 clearInterval(enrichmentPollInterval);
                 clearTimeout(enrichmentPollTimeout);
                 enrichmentPollInterval = null;
                 enrichmentPollTimeout = null;
-                showNotification(t('notificationEnrichmentDone'));
+                if (data.status === 'rate_limited') {
+                    showNotification(t('notificationRateLimited'), 'error');
+                } else {
+                    showNotification(t('notificationEnrichmentDone'));
+                }
 
                 const untestedSection = document.getElementById('untested-section');
                 if (untestedSection && untestedSection.style.display !== 'none') {

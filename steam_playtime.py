@@ -12,6 +12,7 @@ import argparse
 import csv
 import json
 import os
+import socket
 import sys
 import threading
 import time
@@ -23,6 +24,15 @@ from urllib.error import URLError, HTTPError
 BASE_API_URL = "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/"
 
 FREE_INFO_PATH = Path(__file__).parent / "game_free_info.json"
+
+# Storefront API throttling: ~200 requests / 5 minuten per IP.
+# 1.5s baseline houdt ons net onder die limiet zonder de UI te lang te blokkeren.
+STORE_API_DELAY = 1.5
+_STORE_RETRY_BACKOFFS = (2.0, 5.0, 15.0)
+
+
+class SteamRateLimited(Exception):
+    """Raised wanneer de Steam-storefront ons na meerdere retries blijft throttlen."""
 
 
 def _parse_env_file(path: Path) -> Dict[str, str]:
@@ -76,11 +86,19 @@ def save_central_free_info(
     free_info: Dict[int, Optional[bool]],
     path: Path = FREE_INFO_PATH
 ) -> None:
-    """Save free-to-play info centrally for all accounts."""
+    """Save free-to-play info centrally for all accounts.
+
+    Schrijft eerst naar een tijdelijk bestand en doet dan os.replace, zodat
+    een crash midden in een schrijfactie nooit het centrale cachebestand
+    kan halveren. Belangrijk omdat saves nu ook tijdens lange enrichment-
+    loops gebeuren, niet alleen aan het einde.
+    """
     try:
         data = {str(k): v for k, v in free_info.items()}
-        path.write_text(json.dumps(data, ensure_ascii=False, indent=2),
-                        encoding="utf-8")
+        tmp_path = path.parent / (path.name + ".tmp")
+        tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2),
+                            encoding="utf-8")
+        os.replace(tmp_path, path)
     except Exception as e:
         print(f"⚠️  Kon centrale free-info niet opslaan: {e}")
 
@@ -137,20 +155,75 @@ def load_games_from_json(path: Path) -> List[Dict[str, Any]]:
     return rows
 
 
-def fetch_game_details(appid: int) -> Optional[bool]:
-    """Fetch game details from Steam API to determine if it's free-to-play."""
+def _parse_retry_after(header_value: Optional[str]) -> Optional[float]:
+    """Lees een Retry-After header (seconden of HTTP-date) uit; geef None bij parse-fout."""
+    if not header_value:
+        return None
     try:
-        url = f"https://store.steampowered.com/api/appdetails?appids={appid}"
-        req = Request(url, headers={"User-Agent": "steam-playtime-script/1.0"})
-        with urlopen(req, timeout=10) as resp:
-            if resp.status == 200:
-                data = json.loads(resp.read().decode("utf-8",
-                                                     errors="replace"))
-                if str(appid) in data:
-                    return data[str(appid)].get("data",
-                                                {}).get("is_free", None)
-    except Exception:
-        pass
+        return float(header_value)
+    except (TypeError, ValueError):
+        return None
+
+
+def fetch_game_details(appid: int) -> Optional[bool]:
+    """Bepaal of een appid free-to-play is via de publieke storefront-API.
+
+    Retourneert True/False bij succes, None als Steam wel antwoordt maar geen
+    is_free veld heeft (echt 'unknown'). Een appid waarvoor Steam expliciet
+    success=false geeft (verwijderd/onzichtbaar in de store) wordt als free
+    geclassificeerd — die kun je toch niet meer kopen. Gooit SteamRateLimited
+    als we na meerdere retries nog steeds throttled worden — zo kan de
+    aanroeper de cache met rust laten in plaats van per ongeluk null te
+    schrijven.
+    """
+    url = f"https://store.steampowered.com/api/appdetails?appids={appid}"
+    last_rate_limited = False
+
+    for attempt in range(len(_STORE_RETRY_BACKOFFS) + 1):
+        try:
+            req = Request(url,
+                          headers={"User-Agent": "steam-playtime-script/1.0"})
+            with urlopen(req, timeout=10) as resp:
+                if resp.status == 200:
+                    payload = json.loads(
+                        resp.read().decode("utf-8", errors="replace"))
+                    entry = payload.get(str(appid), {})
+                    if entry.get("success") is False:
+                        # Niet meer in de store: behandel als free.
+                        return True
+                    return entry.get("data", {}).get("is_free", None)
+                if resp.status in (429, 500, 502, 503, 504):
+                    last_rate_limited = resp.status == 429
+                else:
+                    return None
+        except HTTPError as e:
+            if e.code == 429 or 500 <= e.code < 600:
+                last_rate_limited = e.code == 429
+                retry_after = _parse_retry_after(
+                    e.headers.get("Retry-After") if e.headers else None)
+                if attempt < len(_STORE_RETRY_BACKOFFS):
+                    delay = retry_after if retry_after is not None else \
+                        _STORE_RETRY_BACKOFFS[attempt]
+                    print(
+                        f"⏳ Storefront throttled (HTTP {e.code}) voor appid "
+                        f"{appid}, wacht {delay:.1f}s en probeer opnieuw...")
+                    time.sleep(delay)
+                    continue
+            else:
+                return None
+        except (URLError, socket.timeout, TimeoutError):
+            if attempt < len(_STORE_RETRY_BACKOFFS):
+                time.sleep(_STORE_RETRY_BACKOFFS[attempt])
+                continue
+            return None
+        except (json.JSONDecodeError, ValueError):
+            return None
+
+        if attempt < len(_STORE_RETRY_BACKOFFS):
+            time.sleep(_STORE_RETRY_BACKOFFS[attempt])
+
+    if last_rate_limited:
+        raise SteamRateLimited(f"Storefront blijft 429 geven voor appid {appid}")
     return None
 
 
@@ -168,12 +241,13 @@ def _report_untested(untested: List[str]) -> None:
 
 
 def enrich_with_free_info(
-        rows: List[Dict[str, Any]],
-        central_free_info: Dict[int,
-                                Optional[bool]]) -> Dict[int, Optional[bool]]:
+    rows: List[Dict[str, Any]],
+    central_free_info: Dict[int, Optional[bool]],
+) -> tuple[Dict[int, Optional[bool]], bool]:
     """Add free-to-play info to rows by querying Steam API if needed.
 
-    Returns updated central_free_info dictionary with newly discovered info.
+    Returns (updated central_free_info, rate_limited) — `rate_limited` is True
+    als de loop voortijdig stopte omdat de Steam-storefront ons throttelde.
     """
     missing = [
         r for r in rows
@@ -187,25 +261,46 @@ def enrich_with_free_info(
 
     if not missing:
         print("✅ Free-to-play info al beschikbaar (uit centrale cache)")
-        return central_free_info
+        return central_free_info, False
 
     print(
         f"🔍 {len(missing)} nieuwe games controleren op free-to-play status...")
     untested = []
     new_info = dict(central_free_info)
+    rate_limited = False
 
     for i, r in enumerate(missing, 1):
-        is_free = fetch_game_details(r["appid"])
+        try:
+            is_free = fetch_game_details(r["appid"])
+        except SteamRateLimited:
+            # Schrijf NIET naar new_info — appid blijft uncached zodat
+            # een latere run hem opnieuw probeert in plaats van als 'Untested'.
+            rate_limited = True
+            print(
+                "⛔ Storefront blijft throttlen, stop verrijking met "
+                f"{i-1}/{len(missing)} verwerkt. Probeer later opnieuw.")
+            # Persist al gedane lookups voordat we returnen, anders gaat
+            # de tussenstand verloren bij een onderbreking.
+            save_central_free_info(new_info)
+            break
         if is_free is None:
             untested.append(r["name"])
         r["is_free"] = is_free
         new_info[r["appid"]] = is_free
         if i % 10 == 0:
             print(f"  ... {i}/{len(missing)}")
+            # Flush tussenstand naar disk zodat een latere run niet
+            # opnieuw alle al-opgehaalde appids hoeft te lookup'en.
+            save_central_free_info(new_info)
+        if i < len(missing):
+            time.sleep(STORE_API_DELAY)
 
     _report_untested(untested)
-    print("✅ Free-to-play info toegevoegd en opgeslagen in centrale cache")
-    return new_info
+    if rate_limited:
+        print("⚠️  Verrijking gedeeltelijk voltooid wegens rate limiting.")
+    else:
+        print("✅ Free-to-play info toegevoegd en opgeslagen in centrale cache")
+    return new_info, rate_limited
 
 
 def enrich_in_background(rows: List[Dict[str, Any]],
@@ -225,8 +320,14 @@ def enrich_in_background(rows: List[Dict[str, Any]],
 
     # Collect free-to-play info silently in background
     new_info = dict(central_free_info)
-    for r in missing:
-        is_free = fetch_game_details(r["appid"])
+    for i, r in enumerate(missing):
+        try:
+            is_free = fetch_game_details(r["appid"])
+        except SteamRateLimited:
+            # Stop stilletjes; appid blijft uncached voor een latere poging.
+            # Wel eerst de al gedane lookups persisteren.
+            save_central_free_info(new_info)
+            break
         # IMPORTANT: Mark ALL games (tested and untested) in central cache
         # So we can track which games were checked
         if is_free is not None:
@@ -234,8 +335,14 @@ def enrich_in_background(rows: List[Dict[str, Any]],
         else:
             # Mark as untested (None) so we know it was checked but couldn't be verified
             new_info[r["appid"]] = None
+        if (i + 1) % 10 == 0:
+            # Flush tussenstand zodat bij een crash/restart de al opgehaalde
+            # appids niet opnieuw bevraagd hoeven te worden.
+            save_central_free_info(new_info)
+        if i + 1 < len(missing):
+            time.sleep(STORE_API_DELAY)
 
-    # Save updated info
+    # Save updated info (vangt ook de staart van <10 games op).
     save_central_free_info(new_info)
 
 
@@ -569,7 +676,7 @@ def _handle_enrichment(args: argparse.Namespace,
                            int, Optional[bool]]:
     """Handle free-to-play enrichment based on args."""
     if args.enrich_free_info:
-        central_free_info = enrich_with_free_info(rows, central_free_info)
+        central_free_info, _ = enrich_with_free_info(rows, central_free_info)
         save_central_free_info(central_free_info)
         return central_free_info
 
@@ -577,7 +684,7 @@ def _handle_enrichment(args: argparse.Namespace,
     if (args.paid_only or args.free_only) and missing:
         # Filtering nodig maar data ontbreekt: doe expliciete enrichment (wacht)
         print("🔄 Free-to-play info verzamelen voor filtering...")
-        central_free_info = enrich_with_free_info(rows, central_free_info)
+        central_free_info, _ = enrich_with_free_info(rows, central_free_info)
         save_central_free_info(central_free_info)
     elif missing and not args.paid_only and not args.free_only:
         # Geen filtering: start achtergrond enrichment zonder te wachten
